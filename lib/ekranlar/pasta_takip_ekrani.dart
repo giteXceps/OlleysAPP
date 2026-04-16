@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PastaTakipEkrani extends StatefulWidget {
   const PastaTakipEkrani({super.key});
@@ -8,198 +9,272 @@ class PastaTakipEkrani extends StatefulWidget {
 }
 
 class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
-  // Metin kutularını okumak için kontrolcüler
-  final TextEditingController _pastaAdiController = TextEditingController();
-  final TextEditingController _gelenMiktarController = TextEditingController();
-  final TextEditingController _fireMiktarController = TextEditingController();
+  // GERÇEK ÜRÜN LİSTESİ VE GÜN BAZINDA RAF ÖMÜRLERİ
+  final List<Map<String, dynamic>> _urunKatalogu = [
+    {'isim': 'Limonlu cheesecake', 'rafOmruGun': 4},
+    {'isim': 'Frambuazlı cheesecake', 'rafOmruGun': 4},
+    {'isim': 'Bitter çikolatalı profiterol', 'rafOmruGun': 4},
+    {'isim': 'Beyaz çikolatalı profiterol', 'rafOmruGun': 4},
+    {'isim': 'Cocostar', 'rafOmruGun': 4},
+    {'isim': 'Cocomare', 'rafOmruGun': 4},
+    {'isim': 'Orman meyveli pasta', 'rafOmruGun': 3},
+    {'isim': 'Yaban mersinli pasta', 'rafOmruGun': 3},
+    {'isim': 'Red velvet', 'rafOmruGun': 4},
+    {'isim': 'Red love', 'rafOmruGun': 4},
+    {'isim': 'Gökkuşağı pasta (carnaval)', 'rafOmruGun': 4},
+    {'isim': 'Devils pasta', 'rafOmruGun': 5},
+    {'isim': 'Mozaik pasta', 'rafOmruGun': 7},
+    {'isim': 'Magnolia', 'rafOmruGun': 3},
+    {'isim': 'Tiramisu', 'rafOmruGun': 3},
+    {'isim': 'Brownie', 'rafOmruGun': 7},
+    {'isim': 'İzmir bombası', 'rafOmruGun': 5},
+    {'isim': 'Tartolet', 'rafOmruGun': 3},
+    {'isim': 'Sandviç', 'rafOmruGun': 3},
+    {'isim': 'Simit', 'rafOmruGun': 2},
+  ];
 
-  // Günlük girilen pastaları geçici olarak tutacağımız liste
-  final List<Map<String, String>> _gunlukKayitlar = [];
+  String? _secilenUrun;
+  final TextEditingController _adetController = TextEditingController();
 
-  void _kaydiEkle() {
-    if (_pastaAdiController.text.isEmpty ||
-        _gelenMiktarController.text.isEmpty) {
+  Future<void> _rafaEkle() async {
+    if (_secilenUrun == null || _adetController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Lütfen en azından pasta adını ve gelen miktarı girin!',
-          ),
-        ),
+        const SnackBar(content: Text('Lütfen ürün seçin ve adet girin!')),
       );
-      return; // Alanlar boşsa kaydetme işlemini durdur
+      return;
     }
 
-    // Listeye yeni veriyi ekle ve ekranı güncelle (setState)
-    setState(() {
-      _gunlukKayitlar.add({
-        'isim': _pastaAdiController.text,
-        'gelen': _gelenMiktarController.text,
-        'fire': _fireMiktarController.text.isEmpty
-            ? '0'
-            : _fireMiktarController.text,
-        'saat': '${DateTime.now().hour}:${DateTime.now().minute}',
-      });
+    // Seçilen ürünün katalog bilgilerini alalım
+    var urunBilgisi = _urunKatalogu.firstWhere(
+      (element) => element['isim'] == _secilenUrun,
+    );
+    int rafOmruGun = urunBilgisi['rafOmruGun'];
+
+    // SKT Hesaplama: Şu anki zaman + Raf Ömrü (Gün)
+    DateTime eklenme = DateTime.now();
+    DateTime skt = eklenme.add(Duration(days: rafOmruGun));
+
+    await FirebaseFirestore.instance.collection('pastalar').add({
+      'isim': _secilenUrun,
+      'adet': int.tryParse(_adetController.text) ?? 0,
+      'ilkAdet':
+          int.tryParse(_adetController.text) ?? 0, // Yönetici analizi için
+      'eklenmeZamani': eklenme,
+      'sktZamani': skt,
+      'durum': 'Rafta',
+      'satilanAdet': 0, // Başlangıçta hiç satılmadı
     });
 
-    // Kayıt sonrası kutuları temizle
-    _pastaAdiController.clear();
-    _gelenMiktarController.clear();
-    _fireMiktarController.clear();
+    setState(() {
+      _secilenUrun = null;
+      _adetController.clear();
+    });
+  }
+
+  // SATILDI BUTONU: Adedi 1 azaltır, satılan adet sayısını 1 artırır
+  Future<void> _satildiIsaretle(
+    String id,
+    int mevcutAdet,
+    int toplamSatilan,
+  ) async {
+    if (mevcutAdet > 0) {
+      await FirebaseFirestore.instance.collection('pastalar').doc(id).update({
+        'adet': mevcutAdet - 1,
+        'satilanAdet': toplamSatilan + 1,
+        'durum': (mevcutAdet - 1) == 0 ? 'Tükendi' : 'Rafta',
+      });
+    }
+  }
+
+  // İMHA ET BUTONU: Çöpe giden ürün
+  Future<void> _imhaEt(String id) async {
+    await FirebaseFirestore.instance.collection('pastalar').doc(id).update({
+      'durum': 'İmha Edildi',
+      'adet': 0,
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.brown[50],
-      appBar: AppBar(
-        title: const Text('Günlük Pasta Takibi'),
-        backgroundColor: Colors.pink,
-        foregroundColor: Colors.white,
-      ),
-      body: Padding(
+    bool isTablet = MediaQuery.of(context).size.width > 600;
+
+    Widget formAlani = Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // SOL TARAF: Veri Giriş Formu (Ekranın 1/3'ünü kaplar)
-            Expanded(
-              flex: 1,
-              child: Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Yeni Kayıt Gir',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
+            const Text(
+              'Yeni Ürün Ekle',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 15),
+
+            // Ürün Seçim Listesi (Dropdown)
+            DropdownButtonFormField<String>(
+              value: _secilenUrun,
+              hint: const Text('Ürün Seçin'),
+              isExpanded: true, // Yazıların sığması için genişlet
+              items: _urunKatalogu
+                  .map(
+                    (u) => DropdownMenuItem(
+                      value: u['isim'] as String,
+                      child: Text(
+                        u['isim'] as String,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 20),
-                      TextField(
-                        controller: _pastaAdiController,
-                        decoration: const InputDecoration(
-                          labelText: 'Pasta Türü (Örn: San Sebastian)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _gelenMiktarController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Vitrine Giren Miktar',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _fireMiktarController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Çöpe Atılan (Fire) Miktar',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton.icon(
-                          onPressed: _kaydiEkle,
-                          icon: const Icon(Icons.save),
-                          label: const Text(
-                            'Sisteme Kaydet',
-                            style: TextStyle(fontSize: 18),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.pink,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (val) => setState(() => _secilenUrun = val),
+              decoration: const InputDecoration(border: OutlineInputBorder()),
             ),
 
-            const SizedBox(width: 20),
-
-            // SAĞ TARAF: Günlük Kayıt Listesi (Ekranın 2/3'ünü kaplar)
-            Expanded(
-              flex: 2,
-              child: Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Bugünün Kayıtları',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Divider(),
-                      Expanded(
-                        child: _gunlukKayitlar.isEmpty
-                            ? const Center(
-                                child: Text(
-                                  'Henüz bir kayıt girilmedi.',
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              )
-                            : ListView.builder(
-                                itemCount: _gunlukKayitlar.length,
-                                itemBuilder: (context, index) {
-                                  var kayit = _gunlukKayitlar[index];
-                                  return ListTile(
-                                    leading: const CircleAvatar(
-                                      backgroundColor: Colors.pink,
-                                      child: Icon(
-                                        Icons.cake,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    title: Text(
-                                      kayit['isim']!,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      'Gelen: ${kayit['gelen']} adet  |  Fire: ${kayit['fire']} adet',
-                                    ),
-                                    trailing: Text(
-                                      kayit['saat']!,
-                                      style: const TextStyle(
-                                        color: Colors.grey,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
-                  ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: _adetController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Vitrine Konan Adet',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 15),
+            SizedBox(
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _rafaEkle,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.pink),
+                child: const Text(
+                  'Rafa Ekle',
+                  style: TextStyle(color: Colors.white, fontSize: 18),
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+
+    // ... (Önceki kodun üst kısımları aynı)
+
+    Widget listeAlani = StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('pastalar')
+          .where('durum', isEqualTo: 'Rafta')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
+
+        var pastalar = snapshot.data!.docs;
+        if (pastalar.isEmpty)
+          return const Center(child: Text('Rafta ürün yok.'));
+
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: pastalar.length,
+          itemBuilder: (context, index) {
+            var p = pastalar[index];
+            DateTime skt = (p['sktZamani'] as Timestamp).toDate();
+
+            // --- RENK MANTIĞI BURADA ---
+            Duration kalanSure = skt.difference(DateTime.now());
+            Color kartRengi = Colors.white; // Varsayılan
+            String durumMesaji = "";
+
+            if (kalanSure.isNegative) {
+              kartRengi = Colors.grey.shade300; // Süresi geçmiş
+              durumMesaji = "SÜRESİ DOLDU!";
+            } else if (kalanSure.inHours < 2) {
+              kartRengi = Colors.red.shade100; // Kritik (Son 2 saat)
+              durumMesaji = "ACİL KALDIRIN!";
+            } else if (kalanSure.inHours < 12) {
+              kartRengi = Colors.orange.shade100; // Uyarı (Son 12 saat)
+              durumMesaji = "Bugün imha edilecek";
+            }
+            // ---------------------------
+
+            String formatliSkt =
+                "${skt.day}/${skt.month} ${skt.hour}:${skt.minute.toString().padLeft(2, '0')}";
+
+            return Card(
+              color: kartRengi, // Dinamik renk burada uygulanıyor
+              elevation: 3,
+              margin: const EdgeInsets.symmetric(vertical: 6),
+              child: ListTile(
+                title: Text(
+                  p['isim'],
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Kalan Adet: ${p['adet']}'),
+                    Text(
+                      'SKT: $formatliSkt',
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    if (durumMesaji.isNotEmpty)
+                      Text(
+                        durumMesaji,
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.check_circle, color: Colors.green),
+                      onPressed: () =>
+                          _satildiIsaretle(p.id, p['adet'], p['satilanAdet']),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_forever, color: Colors.red),
+                      onPressed: () => _imhaEt(p.id),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    // ... (Geri kalanı aynı)
+
+    return Scaffold(
+      backgroundColor: Colors.brown[50],
+      appBar: AppBar(
+        title: const Text('Olleys Pasta Takibi'),
+        backgroundColor: Colors.pink,
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: isTablet
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 1, child: formAlani),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 2, child: listeAlani),
+                ],
+              )
+            : Column(
+                children: [formAlani, const SizedBox(height: 20), listeAlani],
+              ),
       ),
     );
   }
