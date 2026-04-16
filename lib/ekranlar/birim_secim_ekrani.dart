@@ -1,57 +1,98 @@
 import 'package:flutter/material.dart';
 import 'coffee_go_ana_ekrani.dart';
-import 'coffee_go_analiz_ekrani.dart'; // YENİ EKLEDİK
+import 'coffee_go_analiz_ekrani.dart';
+import 'giris_ekrani.dart';
+import 'urun_yonetim_ekrani.dart'; // Yeni oluşturduğumuz ekranı içe aktarıyoruz
 
 class BirimSecimEkrani extends StatelessWidget {
-  const BirimSecimEkrani({super.key});
+  final String yetki;
+  final String? hedefBirim;
+
+  const BirimSecimEkrani({super.key, required this.yetki, this.hedefBirim});
 
   @override
   Widget build(BuildContext context) {
+    // --- GÖRÜNÜRLÜK MANTIĞI ---
+
+    // Coffee Go ana işlemlerine erişim (Genel yetki veya Coffee Go birimi ise)
+    bool coffeeGoGorsun = yetki == 'genel' || hedefBirim == 'Coffee Go';
+
+    // Analiz ekranına erişim (Genel yetki veya birim yöneticisi ise)
+    bool analizGorsun =
+        yetki == 'genel' || (yetki == 'birim' && hedefBirim == 'Coffee Go');
+
+    // Ürün Kataloğu Yönetimi (Yöneticiler için: Genel veya Birim Yöneticisi)
+    // Bar müdürü 'birim' yetkisiyle geldiği için bu şartı sağladık.
+    bool katalogGorsun = yetki == 'genel' || yetki == 'birim';
+
     return Scaffold(
       backgroundColor: Colors.grey[200],
       appBar: AppBar(
-        title: const Text('Admin Panel | Birim Seçimi'),
+        title: const Text('Panel | Birim Seçimi'),
         backgroundColor: Colors.blueGrey[900],
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.exit_to_app),
+            tooltip: 'Çıkış Yap',
+            onPressed: () {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const GirisEkrani()),
+                (route) => false,
+              );
+            },
+          ),
+        ],
       ),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.symmetric(vertical: 20),
           child: Wrap(
-            // Grid yerine Wrap kullanarak daha esnek bir yapı kurduk
             spacing: 20,
             runSpacing: 20,
             alignment: WrapAlignment.center,
             children: [
-              // 1. KART: COFFEE GO PERSONEL PANELİ
-              _birimKarti(
-                context,
-                baslik: 'Coffee Go İşlemleri',
-                altBaslik: 'Satış, Rafa Ekleme, SKT Takip',
-                ikon: Icons.coffee,
-                renk: Colors.brown,
-                sayfa: const CoffeeGoAnaEkrani(),
-              ),
+              // 1. COFFEE GO İŞLEMLERİ (Personel ve Yönetici)
+              if (coffeeGoGorsun)
+                _birimKarti(
+                  context,
+                  baslik: 'Coffee Go İşlemleri',
+                  ikon: Icons.coffee,
+                  renk: Colors.brown,
+                  sayfa: const CoffeeGoAnaEkrani(),
+                ),
 
-              // 2. KART: COFFEE GO YÖNETİCİ ANALİZİ (YENİ!)
-              _birimKarti(
-                context,
-                baslik: 'Coffee Go Analiz',
-                altBaslik: 'Verimlilik, Satış ve Fire Raporları',
-                ikon: Icons.analytics,
-                renk: Colors.blueGrey,
-                sayfa: const CoffeeGoAnalizEkrani(),
-              ),
+              // 2. COFFEE GO ANALİZ (Sadece Yöneticiler)
+              if (analizGorsun)
+                _birimKarti(
+                  context,
+                  baslik: 'Coffee Go Analiz',
+                  ikon: Icons.analytics,
+                  renk: Colors.blueGrey,
+                  sayfa: const CoffeeGoAnalizEkrani(),
+                ),
 
-              // Gelecekte eklenecek diğer birimler için yer tutucular
-              _birimKarti(
-                context,
-                baslik: 'Bowling',
-                altBaslik: 'Yakında eklenecek...',
-                ikon: Icons.sports_score,
-                renk: Colors.grey,
-                sayfa: null,
-              ),
+              // 3. ÜRÜN KATALOG YÖNETİMİ (Bar Müdürü / Yöneticiler)
+              // Burası yeni eklediğimiz kısım!
+              if (katalogGorsun)
+                _birimKarti(
+                  context,
+                  baslik: 'Ürün Kataloğunu Yönet',
+                  ikon: Icons.settings_suggest,
+                  renk: Colors.teal,
+                  sayfa: const UrunYonetimEkrani(),
+                ),
+
+              // 4. BOWLING (Sadece Genel Yönetici)
+              if (yetki == 'genel')
+                _birimKarti(
+                  context,
+                  baslik: 'Bowling',
+                  ikon: Icons.sports_score,
+                  renk: Colors.grey,
+                  sayfa: null,
+                ),
             ],
           ),
         ),
@@ -59,10 +100,10 @@ class BirimSecimEkrani extends StatelessWidget {
     );
   }
 
+  // Kart Tasarımı Yardımcı Fonksiyonu
   Widget _birimKarti(
     BuildContext context, {
     required String baslik,
-    required String altBaslik,
     required IconData ikon,
     required Color renk,
     Widget? sayfa,
@@ -81,29 +122,22 @@ class BirimSecimEkrani extends StatelessWidget {
         }
       },
       child: Container(
-        width: 250,
-        height: 180,
+        width: 200,
+        height: 150,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10),
-          ],
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5)],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(ikon, size: 50, color: renk),
+            Icon(ikon, size: 40, color: renk),
             const SizedBox(height: 12),
             Text(
               baslik,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              altBaslik,
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
               textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
         ),

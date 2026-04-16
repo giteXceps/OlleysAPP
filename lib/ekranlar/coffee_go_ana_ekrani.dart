@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'pasta_takip_ekrani.dart';
+import 'giris_ekrani.dart'; // Çıkış yapabilmek için ekledik
 
 class CoffeeGoAnaEkrani extends StatelessWidget {
   const CoffeeGoAnaEkrani({super.key});
@@ -11,10 +12,25 @@ class CoffeeGoAnaEkrani extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.brown[50],
+      // coffee_go_ana_ekrani.dart içinde AppBar kısmını güncelle:
       appBar: AppBar(
         title: const Text('Olleys Coffee Go Paneli'),
         backgroundColor: Colors.brown,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.power_settings_new,
+            ), // Alternatif çıkış ikonu
+            onPressed: () {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const GirisEkrani()),
+                (route) => false,
+              );
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

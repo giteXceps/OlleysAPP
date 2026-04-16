@@ -10,30 +10,10 @@ class PastaTakipEkrani extends StatefulWidget {
 }
 
 class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
-  final List<Map<String, dynamic>> _urunKatalogu = [
-    {'isim': 'Limonlu cheesecake', 'rafOmruGun': 4},
-    {'isim': 'Frambuazlı cheesecake', 'rafOmruGun': 4},
-    {'isim': 'Bitter çikolatalı profiterol', 'rafOmruGun': 4},
-    {'isim': 'Beyaz çikolatalı profiterol', 'rafOmruGun': 4},
-    {'isim': 'Cocostar', 'rafOmruGun': 4},
-    {'isim': 'Cocomare', 'rafOmruGun': 4},
-    {'isim': 'Orman meyveli pasta', 'rafOmruGun': 3},
-    {'isim': 'Yaban mersinli pasta', 'rafOmruGun': 3},
-    {'isim': 'Red velvet', 'rafOmruGun': 4},
-    {'isim': 'Red love', 'rafOmruGun': 4},
-    {'isim': 'Gökkuşağı pasta (carnaval)', 'rafOmruGun': 4},
-    {'isim': 'Devils pasta', 'rafOmruGun': 5},
-    {'isim': 'Mozaik pasta', 'rafOmruGun': 7},
-    {'isim': 'Magnolia', 'rafOmruGun': 3},
-    {'isim': 'Tiramisu', 'rafOmruGun': 3},
-    {'isim': 'Brownie', 'rafOmruGun': 7},
-    {'isim': 'İzmir bombası', 'rafOmruGun': 5},
-    {'isim': 'Tartolet', 'rafOmruGun': 3},
-    {'isim': 'Sandviç', 'rafOmruGun': 3},
-    {'isim': 'Simit', 'rafOmruGun': 2},
-  ];
+  // ARTIK SABİT LİSTE YOK! Veriler Firestore'dan gelecek.
 
   String? _secilenUrun;
+  int? _secilenUrunRafOmru; // Seçilen ürünün raf ömrünü tutmak için
   final TextEditingController _adetController = TextEditingController();
 
   bool _geriyeDonukMu = false;
@@ -68,35 +48,60 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
   }
 
   Future<void> _rafaEkle() async {
-    if (_secilenUrun == null || _adetController.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Eksik bilgi!')));
+    // 1. Girdi Kontrolü
+    if (_secilenUrun == null ||
+        _adetController.text.isEmpty ||
+        _secilenUrunRafOmru == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Eksik bilgi! Lütfen ürün ve adet seçin.'),
+        ),
+      );
       return;
     }
 
-    var urunBilgisi = _urunKatalogu.firstWhere(
-      (e) => e['isim'] == _secilenUrun,
-    );
+    // 2. Zaman Hesaplamaları
     DateTime eklenmeZamani = _geriyeDonukMu ? _secilenTarih : DateTime.now();
-    DateTime skt = eklenmeZamani.add(Duration(days: urunBilgisi['rafOmruGun']));
 
-    await FirebaseFirestore.instance.collection('pastalar').add({
-      'isim': _secilenUrun,
-      'adet': int.tryParse(_adetController.text) ?? 0,
-      'ilkAdet': int.tryParse(_adetController.text) ?? 0,
-      'eklenmeZamani': eklenmeZamani,
-      'sktZamani': skt,
-      'durum': 'Rafta',
-      'satilanAdet': 0,
-    });
+    // Raf ömrüne göre SKT hesapla (Artık dinamik gelen _secilenUrunRafOmru kullanılıyor)
+    DateTime skt = eklenmeZamani.add(Duration(days: _secilenUrunRafOmru!));
 
-    setState(() {
-      _secilenUrun = null;
-      _adetController.clear();
-      _geriyeDonukMu = false;
-      _secilenTarih = DateTime.now();
-    });
+    // Veritabanından otomatik silinme tarihi (6 Ay = 182 Gün)
+    DateTime silinmeZamani = eklenmeZamani.add(const Duration(days: 182));
+
+    try {
+      // 3. Firestore'a Kayıt
+      await FirebaseFirestore.instance.collection('pastalar').add({
+        'isim': _secilenUrun,
+        'adet': int.tryParse(_adetController.text) ?? 0,
+        'ilkAdet': int.tryParse(_adetController.text) ?? 0,
+        'eklenmeZamani': eklenmeZamani,
+        'sktZamani': skt,
+        'silinmeZamani': silinmeZamani,
+        'durum': 'Rafta',
+        'satilanAdet': 0,
+      });
+
+      // 4. Arayüzü Sıfırla
+      setState(() {
+        _secilenUrun = null;
+        _secilenUrunRafOmru = null;
+        _adetController.clear();
+        _geriyeDonukMu = false;
+        _secilenTarih = DateTime.now();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ürün başarıyla rafa eklendi.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Hata oluştu: $e')));
+    }
   }
 
   Future<void> _satildiIsaretle(
@@ -118,17 +123,15 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           duration: const Duration(seconds: 10),
-          // BURASI ÖNEMLİ: Content içine Column ve Progress bar ekliyoruz
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('$isim satıldı. (Kalan: ${mevcutAdet - 1})'),
               const SizedBox(height: 8),
-              // ZAMAN ÇUBUĞU ANİMASYONU
               TweenAnimationBuilder<double>(
                 duration: const Duration(seconds: 10),
-                tween: Tween(begin: 1.0, end: 0.0), // 1'den 0'a doğru azalsın
+                tween: Tween(begin: 1.0, end: 0.0),
                 builder: (context, value, child) {
                   return LinearProgressIndicator(
                     value: value,
@@ -136,7 +139,7 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
                     valueColor: const AlwaysStoppedAnimation<Color>(
                       Colors.yellow,
                     ),
-                    minHeight: 2, // Çubuğun kalınlığı
+                    minHeight: 2,
                   );
                 },
               ),
@@ -161,37 +164,28 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
     }
   }
 
-  // --- GÜNCELLENMİŞ İMHA ET FONKSİYONU (ZAMAN ÇUBUKLU) ---
   Future<void> _imhaEt(String id, String isim, int mevcutAdet) async {
-    // 1. Önce işlemi yap (Durumu değiştir ve adedi sıfırla)
     await FirebaseFirestore.instance.collection('pastalar').doc(id).update({
       'durum': 'İmha Edildi',
       'adet': 0,
     });
 
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).clearSnackBars(); // Varsa eski bildirimleri temizle
+    ScaffoldMessenger.of(context).clearSnackBars();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         duration: const Duration(seconds: 10),
-        backgroundColor:
-            Colors.red.shade900, // İmha işlemi için daha koyu kırmızı
+        backgroundColor: Colors.red.shade900,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('$isim imha edildi. Kayıtlar güncellendi.'),
             const SizedBox(height: 8),
-            // ZAMAN ÇUBUĞU ANİMASYONU
             TweenAnimationBuilder<double>(
               duration: const Duration(seconds: 10),
-              tween: Tween(
-                begin: 1.0,
-                end: 0.0,
-              ), // 1.0'dan (dolu) 0.0'a (boş) doğru
+              tween: Tween(begin: 1.0, end: 0.0),
               builder: (context, value, child) {
                 return LinearProgressIndicator(
                   value: value,
@@ -207,7 +201,6 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
           label: 'GERİ AL',
           textColor: Colors.white,
           onPressed: () async {
-            // Geri ala basılırsa eski adediyle tekrar Rafta yap
             await FirebaseFirestore.instance
                 .collection('pastalar')
                 .doc(id)
@@ -237,21 +230,53 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 15),
-            DropdownButtonFormField<String>(
-              value: _secilenUrun,
-              hint: const Text('Ürün Seçin'),
-              isExpanded: true,
-              items: _urunKatalogu
-                  .map(
-                    (u) => DropdownMenuItem(
-                      value: u['isim'] as String,
-                      child: Text(u['isim']),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (val) => setState(() => _secilenUrun = val),
-              decoration: const InputDecoration(border: OutlineInputBorder()),
+
+            // --- DİNAMİK DROPDOWN (Firestore'dan Veri Çeken Kısım) ---
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('urun_katalogu')
+                  .orderBy('isim')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: LinearProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Text(
+                    "Önce katalogdan ürün eklemelisiniz!",
+                    style: TextStyle(color: Colors.red),
+                  );
+                }
+
+                var katalogItems = snapshot.data!.docs;
+
+                return DropdownButtonFormField<String>(
+                  value: _secilenUrun,
+                  hint: const Text('Katalogdan Ürün Seçin'),
+                  isExpanded: true,
+                  items: katalogItems.map((doc) {
+                    return DropdownMenuItem(
+                      value: doc['isim'] as String,
+                      child: Text("${doc['isim']} (${doc['rafOmruGun']} Gün)"),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _secilenUrun = val;
+                      // Seçilen ürünün dökümanından raf ömrünü alıyoruz
+                      var secilenDoc = katalogItems.firstWhere(
+                        (d) => d['isim'] == val,
+                      );
+                      _secilenUrunRafOmru = secilenDoc['rafOmruGun'];
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                  ),
+                );
+              },
             ),
+
             const SizedBox(height: 15),
             TextField(
               controller: _adetController,
@@ -261,7 +286,6 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
                 border: OutlineInputBorder(),
               ),
             ),
-
             const SizedBox(height: 10),
             SwitchListTile(
               title: const Text(
@@ -280,7 +304,6 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
                   "Tarih: ${DateFormat('dd/MM HH:mm').format(_secilenTarih)}",
                 ),
               ),
-
             const SizedBox(height: 15),
             SizedBox(
               height: 50,
@@ -299,7 +322,6 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
     );
 
     Widget listeAlani = StreamBuilder<QuerySnapshot>(
-      // SKT'si yakın olan en üstte
       stream: FirebaseFirestore.instance
           .collection('pastalar')
           .where('durum', isEqualTo: 'Rafta')
@@ -349,7 +371,6 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Yazar Kasa İkonu (İsim eklendi)
                     IconButton(
                       icon: const Icon(
                         Icons.point_of_sale,
@@ -364,7 +385,6 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Çöp Kutusu İkonu (İsim eklendi)
                     IconButton(
                       icon: const Icon(
                         Icons.delete_forever,

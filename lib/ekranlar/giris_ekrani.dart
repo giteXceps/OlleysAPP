@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'birim_secim_ekrani.dart';
 import 'coffee_go_ana_ekrani.dart';
+import 'root_yonetim_ekrani.dart'; // Bu dosyayı aşağıda oluşturacağız
 
 class GirisEkrani extends StatefulWidget {
   const GirisEkrani({super.key});
@@ -11,32 +13,76 @@ class GirisEkrani extends StatefulWidget {
 
 class _GirisEkraniState extends State<GirisEkrani> {
   final TextEditingController _kullaniciAdiController = TextEditingController();
+  final TextEditingController _sifreController =
+      TextEditingController(); // Şifre için eklendi
 
-  void _girisYap() {
-    // Kullanıcının yazdığı metni al, boşlukları sil ve küçük harfe çevir
+  void _girisYap() async {
     String girilenAd = _kullaniciAdiController.text.trim().toLowerCase();
+    String girilenSifre = _sifreController.text.trim();
 
-    if (girilenAd == 'admin') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const BirimSecimEkrani()),
-      );
-    } else if (girilenAd == 'personel') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const CoffeeGoAnaEkrani()),
-      );
-    } else {
-      // Hatalı girişte alt tarafta uyarı mesajı (SnackBar) çıkar
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Hatalı giriş! (İpucu: Sadece "admin" veya "personel" yazın)',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
+    if (girilenAd.isEmpty || girilenSifre.isEmpty) {
+      _mesajGoster("Lütfen kullanıcı adı ve şifre girin.");
+      return;
     }
+
+    try {
+      // Firestore'da kullanıcıyı bul
+      var userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .where('kullaniciAdi', isEqualTo: girilenAd)
+          .where('sifre', isEqualTo: girilenSifre)
+          .get();
+
+      if (userDoc.docs.isNotEmpty) {
+        var veri = userDoc.docs.first.data();
+        String rol = veri['rol'];
+        String birim = veri['birim'] ?? '';
+
+        if (!mounted) return;
+
+        // YETKİYE GÖRE YÖNLENDİRME
+        if (rol == 'root') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const RootYonetimEkrani()),
+          );
+        } else if (rol == 'genel_yonetici') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const BirimSecimEkrani(yetki: 'genel'),
+            ),
+          );
+        } else if (rol == 'birim_yoneticisi') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  BirimSecimEkrani(yetki: 'birim', hedefBirim: birim),
+            ),
+          );
+        } else if (rol == 'personel') {
+          if (birim == 'Coffee Go') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const CoffeeGoAnaEkrani(),
+              ),
+            );
+          }
+        }
+      } else {
+        _mesajGoster("Hatalı kullanıcı adı veya şifre!");
+      }
+    } catch (e) {
+      _mesajGoster("Bağlantı hatası: $e");
+    }
+  }
+
+  void _mesajGoster(String mesaj) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(mesaj), backgroundColor: Colors.red));
   }
 
   @override
@@ -59,10 +105,7 @@ class _GirisEkraniState extends State<GirisEkrani> {
                 'Olleys Eğlence Merkezi',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 8),
-              const Text('Sistem Girişi', style: TextStyle(color: Colors.grey)),
               const SizedBox(height: 32),
-
               TextField(
                 controller: _kullaniciAdiController,
                 decoration: const InputDecoration(
@@ -72,22 +115,21 @@ class _GirisEkraniState extends State<GirisEkrani> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              const TextField(
+              TextField(
+                controller: _sifreController,
                 obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Şifre (Şimdilik Boş Bırakın)',
+                decoration: const InputDecoration(
+                  labelText: 'Şifre',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.lock),
                 ),
               ),
               const SizedBox(height: 32),
-
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _girisYap, // İŞTE KRİTİK NOKTA BURASI
+                  onPressed: _girisYap,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueGrey,
                     foregroundColor: Colors.white,
