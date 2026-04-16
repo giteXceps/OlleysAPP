@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class PastaTakipEkrani extends StatefulWidget {
   const PastaTakipEkrani({super.key});
@@ -9,7 +10,6 @@ class PastaTakipEkrani extends StatefulWidget {
 }
 
 class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
-  // GERÇEK ÜRÜN LİSTESİ VE GÜN BAZINDA RAF ÖMÜRLERİ
   final List<Map<String, dynamic>> _urunKatalogu = [
     {'isim': 'Limonlu cheesecake', 'rafOmruGun': 4},
     {'isim': 'Frambuazlı cheesecake', 'rafOmruGun': 4},
@@ -36,44 +36,72 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
   String? _secilenUrun;
   final TextEditingController _adetController = TextEditingController();
 
+  bool _geriyeDonukMu = false;
+  DateTime _secilenTarih = DateTime.now();
+
+  Future<void> _tarihSaatSec() async {
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _secilenTarih,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now(),
+    );
+
+    if (pickedDate != null) {
+      final TimeOfDay? pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(_secilenTarih),
+      );
+
+      if (pickedTime != null) {
+        setState(() {
+          _secilenTarih = DateTime(
+            pickedDate.year,
+            pickedDate.month,
+            pickedDate.day,
+            pickedTime.hour,
+            pickedTime.minute,
+          );
+        });
+      }
+    }
+  }
+
   Future<void> _rafaEkle() async {
     if (_secilenUrun == null || _adetController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lütfen ürün seçin ve adet girin!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Eksik bilgi!')));
       return;
     }
 
-    // Seçilen ürünün katalog bilgilerini alalım
     var urunBilgisi = _urunKatalogu.firstWhere(
-      (element) => element['isim'] == _secilenUrun,
+      (e) => e['isim'] == _secilenUrun,
     );
-    int rafOmruGun = urunBilgisi['rafOmruGun'];
-
-    // SKT Hesaplama: Şu anki zaman + Raf Ömrü (Gün)
-    DateTime eklenme = DateTime.now();
-    DateTime skt = eklenme.add(Duration(days: rafOmruGun));
+    DateTime eklenmeZamani = _geriyeDonukMu ? _secilenTarih : DateTime.now();
+    DateTime skt = eklenmeZamani.add(Duration(days: urunBilgisi['rafOmruGun']));
 
     await FirebaseFirestore.instance.collection('pastalar').add({
       'isim': _secilenUrun,
       'adet': int.tryParse(_adetController.text) ?? 0,
-      'ilkAdet':
-          int.tryParse(_adetController.text) ?? 0, // Yönetici analizi için
-      'eklenmeZamani': eklenme,
+      'ilkAdet': int.tryParse(_adetController.text) ?? 0,
+      'eklenmeZamani': eklenmeZamani,
       'sktZamani': skt,
       'durum': 'Rafta',
-      'satilanAdet': 0, // Başlangıçta hiç satılmadı
+      'satilanAdet': 0,
     });
 
     setState(() {
       _secilenUrun = null;
       _adetController.clear();
+      _geriyeDonukMu = false;
+      _secilenTarih = DateTime.now();
     });
   }
 
-  // SATILDI BUTONU: Adedi 1 azaltır, satılan adet sayısını 1 artırır
   Future<void> _satildiIsaretle(
     String id,
+    String isim,
     int mevcutAdet,
     int toplamSatilan,
   ) async {
@@ -83,15 +111,111 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
         'satilanAdet': toplamSatilan + 1,
         'durum': (mevcutAdet - 1) == 0 ? 'Tükendi' : 'Rafta',
       });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 10),
+          // BURASI ÖNEMLİ: Content içine Column ve Progress bar ekliyoruz
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('$isim satıldı. (Kalan: ${mevcutAdet - 1})'),
+              const SizedBox(height: 8),
+              // ZAMAN ÇUBUĞU ANİMASYONU
+              TweenAnimationBuilder<double>(
+                duration: const Duration(seconds: 10),
+                tween: Tween(begin: 1.0, end: 0.0), // 1'den 0'a doğru azalsın
+                builder: (context, value, child) {
+                  return LinearProgressIndicator(
+                    value: value,
+                    backgroundColor: Colors.white24,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Colors.yellow,
+                    ),
+                    minHeight: 2, // Çubuğun kalınlığı
+                  );
+                },
+              ),
+            ],
+          ),
+          action: SnackBarAction(
+            label: 'GERİ AL',
+            textColor: Colors.yellow,
+            onPressed: () async {
+              await FirebaseFirestore.instance
+                  .collection('pastalar')
+                  .doc(id)
+                  .update({
+                    'adet': mevcutAdet,
+                    'satilanAdet': toplamSatilan,
+                    'durum': 'Rafta',
+                  });
+            },
+          ),
+        ),
+      );
     }
   }
 
-  // İMHA ET BUTONU: Çöpe giden ürün
-  Future<void> _imhaEt(String id) async {
+  // --- GÜNCELLENMİŞ İMHA ET FONKSİYONU (ZAMAN ÇUBUKLU) ---
+  Future<void> _imhaEt(String id, String isim, int mevcutAdet) async {
+    // 1. Önce işlemi yap (Durumu değiştir ve adedi sıfırla)
     await FirebaseFirestore.instance.collection('pastalar').doc(id).update({
       'durum': 'İmha Edildi',
       'adet': 0,
     });
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).clearSnackBars(); // Varsa eski bildirimleri temizle
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 10),
+        backgroundColor:
+            Colors.red.shade900, // İmha işlemi için daha koyu kırmızı
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('$isim imha edildi. Kayıtlar güncellendi.'),
+            const SizedBox(height: 8),
+            // ZAMAN ÇUBUĞU ANİMASYONU
+            TweenAnimationBuilder<double>(
+              duration: const Duration(seconds: 10),
+              tween: Tween(
+                begin: 1.0,
+                end: 0.0,
+              ), // 1.0'dan (dolu) 0.0'a (boş) doğru
+              builder: (context, value, child) {
+                return LinearProgressIndicator(
+                  value: value,
+                  backgroundColor: Colors.white24,
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                  minHeight: 2,
+                );
+              },
+            ),
+          ],
+        ),
+        action: SnackBarAction(
+          label: 'GERİ AL',
+          textColor: Colors.white,
+          onPressed: () async {
+            // Geri ala basılırsa eski adediyle tekrar Rafta yap
+            await FirebaseFirestore.instance
+                .collection('pastalar')
+                .doc(id)
+                .update({'durum': 'Rafta', 'adet': mevcutAdet});
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -113,36 +237,50 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 15),
-
-            // Ürün Seçim Listesi (Dropdown)
             DropdownButtonFormField<String>(
               value: _secilenUrun,
               hint: const Text('Ürün Seçin'),
-              isExpanded: true, // Yazıların sığması için genişlet
+              isExpanded: true,
               items: _urunKatalogu
                   .map(
                     (u) => DropdownMenuItem(
                       value: u['isim'] as String,
-                      child: Text(
-                        u['isim'] as String,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      child: Text(u['isim']),
                     ),
                   )
                   .toList(),
               onChanged: (val) => setState(() => _secilenUrun = val),
               decoration: const InputDecoration(border: OutlineInputBorder()),
             ),
-
             const SizedBox(height: 15),
             TextField(
               controller: _adetController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Vitrine Konan Adet',
+                labelText: 'Adet',
                 border: OutlineInputBorder(),
               ),
             ),
+
+            const SizedBox(height: 10),
+            SwitchListTile(
+              title: const Text(
+                "Geriye dönük kayıt",
+                style: TextStyle(fontSize: 14),
+              ),
+              value: _geriyeDonukMu,
+              onChanged: (val) => setState(() => _geriyeDonukMu = val),
+              activeColor: Colors.orange,
+            ),
+            if (_geriyeDonukMu)
+              OutlinedButton.icon(
+                onPressed: _tarihSaatSec,
+                icon: const Icon(Icons.calendar_month),
+                label: Text(
+                  "Tarih: ${DateFormat('dd/MM HH:mm').format(_secilenTarih)}",
+                ),
+              ),
+
             const SizedBox(height: 15),
             SizedBox(
               height: 50,
@@ -160,20 +298,21 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
       ),
     );
 
-    // ... (Önceki kodun üst kısımları aynı)
-
     Widget listeAlani = StreamBuilder<QuerySnapshot>(
+      // SKT'si yakın olan en üstte
       stream: FirebaseFirestore.instance
           .collection('pastalar')
           .where('durum', isEqualTo: 'Rafta')
+          .orderBy('sktZamani', descending: false)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData)
           return const Center(child: CircularProgressIndicator());
-
         var pastalar = snapshot.data!.docs;
-        if (pastalar.isEmpty)
-          return const Center(child: Text('Rafta ürün yok.'));
+
+        if (pastalar.isEmpty) {
+          return const Center(child: Text("Rafta ürün yok."));
+        }
 
         return ListView.builder(
           shrinkWrap: true,
@@ -182,66 +321,57 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
           itemBuilder: (context, index) {
             var p = pastalar[index];
             DateTime skt = (p['sktZamani'] as Timestamp).toDate();
-
-            // --- RENK MANTIĞI BURADA ---
             Duration kalanSure = skt.difference(DateTime.now());
-            Color kartRengi = Colors.white; // Varsayılan
-            String durumMesaji = "";
 
+            Color kartRengi = Colors.white;
+            String durumMesaji = "";
             if (kalanSure.isNegative) {
-              kartRengi = Colors.grey.shade300; // Süresi geçmiş
+              kartRengi = Colors.grey.shade300;
               durumMesaji = "SÜRESİ DOLDU!";
             } else if (kalanSure.inHours < 2) {
-              kartRengi = Colors.red.shade100; // Kritik (Son 2 saat)
+              kartRengi = Colors.red.shade100;
               durumMesaji = "ACİL KALDIRIN!";
             } else if (kalanSure.inHours < 12) {
-              kartRengi = Colors.orange.shade100; // Uyarı (Son 12 saat)
-              durumMesaji = "Bugün imha edilecek";
+              kartRengi = Colors.orange.shade100;
+              durumMesaji = "Bugün son!";
             }
-            // ---------------------------
-
-            String formatliSkt =
-                "${skt.day}/${skt.month} ${skt.hour}:${skt.minute.toString().padLeft(2, '0')}";
 
             return Card(
-              color: kartRengi, // Dinamik renk burada uygulanıyor
-              elevation: 3,
-              margin: const EdgeInsets.symmetric(vertical: 6),
+              color: kartRengi,
               child: ListTile(
                 title: Text(
                   p['isim'],
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Kalan Adet: ${p['adet']}'),
-                    Text(
-                      'SKT: $formatliSkt',
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
-                    if (durumMesaji.isNotEmpty)
-                      Text(
-                        durumMesaji,
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                  ],
+                subtitle: Text(
+                  'Adet: ${p['adet']} | SKT: ${DateFormat('dd/MM HH:mm').format(skt)}\n$durumMesaji',
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Yazar Kasa İkonu (İsim eklendi)
                     IconButton(
-                      icon: const Icon(Icons.check_circle, color: Colors.green),
-                      onPressed: () =>
-                          _satildiIsaretle(p.id, p['adet'], p['satilanAdet']),
+                      icon: const Icon(
+                        Icons.point_of_sale,
+                        color: Colors.green,
+                        size: 30,
+                      ),
+                      onPressed: () => _satildiIsaretle(
+                        p.id,
+                        p['isim'],
+                        p['adet'],
+                        p['satilanAdet'],
+                      ),
                     ),
+                    const SizedBox(width: 8),
+                    // Çöp Kutusu İkonu (İsim eklendi)
                     IconButton(
-                      icon: const Icon(Icons.delete_forever, color: Colors.red),
-                      onPressed: () => _imhaEt(p.id),
+                      icon: const Icon(
+                        Icons.delete_forever,
+                        color: Colors.red,
+                        size: 30,
+                      ),
+                      onPressed: () => _imhaEt(p.id, p['isim'], p['adet']),
                     ),
                   ],
                 ),
@@ -251,8 +381,6 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
         );
       },
     );
-
-    // ... (Geri kalanı aynı)
 
     return Scaffold(
       backgroundColor: Colors.brown[50],
@@ -267,7 +395,7 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
             ? Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(flex: 1, child: formAlani),
+                  Expanded(child: formAlani),
                   const SizedBox(width: 20),
                   Expanded(flex: 2, child: listeAlani),
                 ],
