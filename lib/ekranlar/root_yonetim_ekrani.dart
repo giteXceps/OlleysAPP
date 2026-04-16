@@ -34,11 +34,46 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
     _mesajGoster('Kullanıcı Başarıyla Eklendi!', Colors.green);
   }
 
+  // --- KULLANICI SİLME FONKSİYONU ---
+  void _kullaniciSil(String docId) async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(docId).delete();
+      _mesajGoster('Kullanıcı başarıyla silindi.', Colors.redAccent);
+    } catch (e) {
+      _mesajGoster('Silme işlemi başarısız: $e', Colors.red);
+    }
+  }
+
+  // --- KULLANICI SİLME ONAY DİYALOGU ---
+  void _kullaniciSilOnay(String docId, String isim) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Kullanıcıyı Sil?'),
+        content: Text(
+          '$isim isimli kullanıcıyı silmek istediğinizden emin misiniz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İPTAL'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _kullaniciSil(docId);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('SİL'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- VERİ TEMİZLEME MANTIĞI (3 AYDAN ESKİLER) ---
   Future<void> _eskiVerileriTemizle() async {
-    // 90 gün öncesinin tarihini alıyoruz
     DateTime ucAyOnce = DateTime.now().subtract(const Duration(days: 90));
-
     try {
       var eskiKayitlar = await FirebaseFirestore.instance
           .collection('pastalar')
@@ -50,7 +85,6 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
         return;
       }
 
-      // Her bir dökümanı tek tek siler
       for (var doc in eskiKayitlar.docs) {
         await doc.reference.delete();
       }
@@ -64,14 +98,13 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
     }
   }
 
-  // --- TEMİZLİK ONAY PENCERESİ ---
   void _temizlikOnayDiyalogu() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('⚠️ Verileri Temizle'),
         content: const Text(
-          '3 aydan eski tüm kayıtlar kalıcı olarak silinecek. Analiz verilerin etkilenebilir. Emin misin?',
+          '3 aydan eski tüm kayıtlar kalıcı olarak silinecek. Emin misin?',
         ),
         actions: [
           TextButton(
@@ -91,7 +124,6 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
     );
   }
 
-  // Yardımcı Mesaj Fonksiyonu
   void _mesajGoster(String mesaj, Color renk) {
     ScaffoldMessenger.of(
       context,
@@ -108,7 +140,6 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            tooltip: 'Çıkış Yap',
             onPressed: () {
               Navigator.pushAndRemoveUntil(
                 context,
@@ -171,17 +202,65 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
             ElevatedButton(
               onPressed: _kullaniciEkle,
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 15),
                 backgroundColor: Colors.blueGrey[800],
                 foregroundColor: Colors.white,
               ),
               child: const Text('Yeni Kullanıcı Oluştur'),
             ),
 
-            // --- SİSTEM BAKIMI BÖLÜMÜ ---
             const SizedBox(height: 40),
             const Divider(thickness: 2),
-            const SizedBox(height: 10),
+            const Text(
+              "Sistemdeki Kullanıcılar",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.blueGrey,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // --- KULLANICI LİSTESİ (STREAMBUILDER) ---
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData)
+                  return const Center(child: CircularProgressIndicator());
+                var docs = snapshot.data!.docs;
+                return ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    var u = docs[index];
+                    return Card(
+                      child: ListTile(
+                        leading: const CircleAvatar(child: Icon(Icons.person)),
+                        title: Text(u['kullaniciAdi']),
+                        subtitle: Text(
+                          "Rol: ${u['rol']} | Birim: ${u['birim']}",
+                        ),
+                        trailing: u['rol'] == 'root'
+                            ? null // Root kullanıcısı kendisini veya diğer rootları buradan silemesin (opsiyonel)
+                            : IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () =>
+                                    _kullaniciSilOnay(u.id, u['kullaniciAdi']),
+                              ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+
+            const SizedBox(height: 40),
+            const Divider(thickness: 2),
             const Text(
               "Sistem Bakımı",
               style: TextStyle(
@@ -189,11 +268,6 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
                 fontWeight: FontWeight.bold,
                 color: Colors.red,
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              "Veritabanı alanını boşaltmak için eski kayıtları temizleyin.",
-              style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
@@ -203,7 +277,6 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red[700],
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 15),
               ),
             ),
           ],
