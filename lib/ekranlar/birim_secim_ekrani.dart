@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'coffee_go_ana_ekrani.dart';
 import 'coffee_go_analiz_ekrani.dart';
 import 'giris_ekrani.dart';
-import 'urun_yonetim_ekrani.dart'; // Yeni oluşturduğumuz ekranı içe aktarıyoruz
+import 'urun_yonetim_ekrani.dart';
 
 class BirimSecimEkrani extends StatelessWidget {
   final String yetki;
@@ -22,7 +22,6 @@ class BirimSecimEkrani extends StatelessWidget {
         yetki == 'genel' || (yetki == 'birim' && hedefBirim == 'Coffee Go');
 
     // Ürün Kataloğu Yönetimi (Yöneticiler için: Genel veya Birim Yöneticisi)
-    // Bar müdürü 'birim' yetkisiyle geldiği için bu şartı sağladık.
     bool katalogGorsun = yetki == 'genel' || yetki == 'birim';
 
     return Scaffold(
@@ -74,7 +73,6 @@ class BirimSecimEkrani extends StatelessWidget {
                 ),
 
               // 3. ÜRÜN KATALOG YÖNETİMİ (Bar Müdürü / Yöneticiler)
-              // Burası yeni eklediğimiz kısım!
               if (katalogGorsun)
                 _birimKarti(
                   context,
@@ -84,15 +82,7 @@ class BirimSecimEkrani extends StatelessWidget {
                   sayfa: const UrunYonetimEkrani(),
                 ),
 
-              // 4. BOWLING (Sadece Genel Yönetici)
-              if (yetki == 'genel')
-                _birimKarti(
-                  context,
-                  baslik: 'Bowling',
-                  ikon: Icons.sports_score,
-                  renk: Colors.grey,
-                  sayfa: null,
-                ),
+              // BOWLING KISMI BURADAN TAMAMEN KALDIRILDI
             ],
           ),
         ),
