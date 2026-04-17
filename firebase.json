@@ -1,1 +1,39 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"olleysapp","appId":"1:102939880838:android:f2fcaff4cbcb573e01d007","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"olleysapp","configurations":{"android":"1:102939880838:android:f2fcaff4cbcb573e01d007","ios":"1:102939880838:ios:d848814f0871dfa301d007","macos":"1:102939880838:ios:d848814f0871dfa301d007","web":"1:102939880838:web:035844830706dd2701d007","windows":"1:102939880838:web:4d900e6ffaa1726f01d007"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "olleysapp",
+          "appId": "1:102939880838:android:f2fcaff4cbcb573e01d007",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "olleysapp",
+          "configurations": {
+            "android": "1:102939880838:android:f2fcaff4cbcb573e01d007",
+            "ios": "1:102939880838:ios:d848814f0871dfa301d007",
+            "macos": "1:102939880838:ios:d848814f0871dfa301d007",
+            "web": "1:102939880838:web:035844830706dd2701d007",
+            "windows": "1:102939880838:web:4d900e6ffaa1726f01d007"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

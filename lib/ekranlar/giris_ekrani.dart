@@ -102,8 +102,12 @@ class _GirisEkraniState extends State<GirisEkrani> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Olleys Eğlence Merkezi',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                'Coffee Go | Yönetim',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.brown,
+                ),
               ),
               const SizedBox(height: 32),
               TextField(
