@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'coffee_go_ana_ekrani.dart';
 import 'coffee_go_analiz_ekrani.dart';
+import 'demleme_analiz_ekrani.dart'; // YENİ
 import 'giris_ekrani.dart';
+import 'toplu_satis_ekrani.dart';
 import 'urun_yonetim_ekrani.dart';
-import 'toplu_satis_ekrani.dart'; // YENİ EKLEME
 
 class BirimSecimEkrani extends StatelessWidget {
   final String yetki;
@@ -14,19 +15,13 @@ class BirimSecimEkrani extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // --- GÖRÜNÜRLÜK MANTIĞI ---
-
-    // Coffee Go ana işlemlerine erişim (Genel yetki veya Coffee Go birimi ise)
     bool coffeeGoGorsun = yetki == 'genel' || hedefBirim == 'Coffee Go';
-
-    // Analiz ekranına erişim (Genel yetki veya birim yöneticisi ise)
     bool analizGorsun =
         yetki == 'genel' || (yetki == 'birim' && hedefBirim == 'Coffee Go');
-
-    // Ürün Kataloğu Yönetimi (Yöneticiler için: Genel veya Birim Yöneticisi)
-    bool katalogGorsun = yetki == 'genel' || yetki == 'birim';
-
-    // Gün Sonu Satış Girişi (Genel veya Coffee Go birim yöneticisi)
     bool topluSatisGorsun =
+        yetki == 'genel' || (yetki == 'birim' && hedefBirim == 'Coffee Go');
+    bool katalogGorsun = yetki == 'genel' || yetki == 'birim';
+    bool demlemeAnalizGorsun =
         yetki == 'genel' || (yetki == 'birim' && hedefBirim == 'Coffee Go');
 
     return Scaffold(
@@ -57,7 +52,6 @@ class BirimSecimEkrani extends StatelessWidget {
             runSpacing: 20,
             alignment: WrapAlignment.center,
             children: [
-              // 1. COFFEE GO İŞLEMLERİ (Personel ve Yönetici)
               if (coffeeGoGorsun)
                 _birimKarti(
                   context,
@@ -67,7 +61,6 @@ class BirimSecimEkrani extends StatelessWidget {
                   sayfa: const CoffeeGoAnaEkrani(),
                 ),
 
-              // 2. COFFEE GO ANALİZ (Sadece Yöneticiler)
               if (analizGorsun)
                 _birimKarti(
                   context,
@@ -77,7 +70,6 @@ class BirimSecimEkrani extends StatelessWidget {
                   sayfa: const CoffeeGoAnalizEkrani(),
                 ),
 
-              // 3. GÜN SONU SATIŞ GİRİŞİ (YENİ)
               if (topluSatisGorsun)
                 _birimKarti(
                   context,
@@ -87,7 +79,15 @@ class BirimSecimEkrani extends StatelessWidget {
                   sayfa: const TopluSatisEkrani(),
                 ),
 
-              // 4. ÜRÜN KATALOG YÖNETİMİ (Bar Müdürü / Yöneticiler)
+              if (demlemeAnalizGorsun)
+                _birimKarti(
+                  context,
+                  baslik: 'Demleme Analizi',
+                  ikon: Icons.local_cafe,
+                  renk: Colors.deepOrange[700]!,
+                  sayfa: const DemlemeAnalizEkrani(),
+                ),
+
               if (katalogGorsun)
                 _birimKarti(
                   context,
@@ -103,7 +103,6 @@ class BirimSecimEkrani extends StatelessWidget {
     );
   }
 
-  // Kart Tasarımı Yardımcı Fonksiyonu
   Widget _birimKarti(
     BuildContext context, {
     required String baslik,

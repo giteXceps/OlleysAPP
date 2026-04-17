@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'pasta_takip_ekrani.dart';
-import 'giris_ekrani.dart'; // Çıkış yapabilmek için ekledik
+import 'demleme_ekrani.dart';
+import 'giris_ekrani.dart';
 
 class CoffeeGoAnaEkrani extends StatelessWidget {
   const CoffeeGoAnaEkrani({super.key});
@@ -12,16 +13,13 @@ class CoffeeGoAnaEkrani extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.brown[50],
-      // coffee_go_ana_ekrani.dart içinde AppBar kısmını güncelle:
       appBar: AppBar(
         title: const Text('Olleys Coffee Go Paneli'),
         backgroundColor: Colors.brown,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.power_settings_new,
-            ), // Alternatif çıkış ikonu
+            icon: const Icon(Icons.power_settings_new),
             onPressed: () {
               Navigator.pushAndRemoveUntil(
                 context,
@@ -42,31 +40,35 @@ class CoffeeGoAnaEkrani extends StatelessWidget {
           children: [
             _islemKarti(
               context,
-              'Pasta Takibi',
-              Icons.cake,
-              Colors.pink,
-              'Günlük taze girişleri ve SKT/Fire durumlarını kaydet.',
+              baslik: 'Pasta Takibi',
+              ikon: Icons.cake,
+              renk: Colors.pink,
+              aciklama: 'Günlük taze girişleri ve SKT/Fire durumlarını kaydet.',
+              sayfa: const PastaTakipEkrani(),
             ),
             _islemKarti(
               context,
-              'Dolap Sıcaklığı',
-              Icons.ac_unit,
-              Colors.blue,
-              '3 saatte bir dolap derecelerini kontrol et ve not al.',
+              baslik: 'Dolap Sıcaklığı',
+              ikon: Icons.ac_unit,
+              renk: Colors.blue,
+              aciklama: '3 saatte bir dolap derecelerini kontrol et ve not al.',
+              sayfa: null,
             ),
             _islemKarti(
               context,
-              'Filtre Kahve',
-              Icons.coffee_maker,
-              Colors.brown,
-              '3 saatlik demleme döngüsünü başlat ve kaydet.',
+              baslik: 'Filtre Kahve',
+              ikon: Icons.coffee_maker,
+              renk: Colors.brown,
+              aciklama: 'Demleme yaptığında kaydet, tazelik durumunu takip et.',
+              sayfa: const DemlemeEkrani(tip: Demlemetipi.filtre),
             ),
             _islemKarti(
               context,
-              'Çay Demleme',
-              Icons.local_drink,
-              Colors.deepOrange,
-              'Taze çay demlendiğinde saatini sisteme gir.',
+              baslik: 'Çay Demleme',
+              ikon: Icons.local_drink,
+              renk: Colors.deepOrange,
+              aciklama: 'Demleme yaptığında kaydet, tazelik durumunu takip et.',
+              sayfa: const DemlemeEkrani(tip: Demlemetipi.cay),
             ),
           ],
         ),
@@ -75,24 +77,24 @@ class CoffeeGoAnaEkrani extends StatelessWidget {
   }
 
   Widget _islemKarti(
-    BuildContext context,
-    String baslik,
-    IconData ikon,
-    Color renk,
-    String aciklama,
-  ) {
+    BuildContext context, {
+    required String baslik,
+    required IconData ikon,
+    required Color renk,
+    required String aciklama,
+    required Widget? sayfa,
+  }) {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: () {
-          if (baslik == 'Pasta Takibi') {
+          if (sayfa != null) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const PastaTakipEkrani()),
+              MaterialPageRoute(builder: (context) => sayfa),
             );
           } else {
-            // Diğer butonlar için geçici mesaj
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('$baslik sayfası yakında eklenecek...')),
             );
