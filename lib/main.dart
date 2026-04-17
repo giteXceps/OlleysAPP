@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 // Giriş ekranını kullanabilmek için dosyayı import ediyoruz:
 import 'ekranlar/giris_ekrani.dart';
-
-import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart'; // Yeni eklendi
 import 'firebase_options.dart'; // FlutterFire'ın otomatik oluşturduğu ayar dosyası
 import 'ekranlar/giris_ekrani.dart';

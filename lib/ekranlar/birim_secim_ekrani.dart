@@ -3,6 +3,7 @@ import 'coffee_go_ana_ekrani.dart';
 import 'coffee_go_analiz_ekrani.dart';
 import 'giris_ekrani.dart';
 import 'urun_yonetim_ekrani.dart';
+import 'toplu_satis_ekrani.dart'; // YENİ EKLEME
 
 class BirimSecimEkrani extends StatelessWidget {
   final String yetki;
@@ -23,6 +24,10 @@ class BirimSecimEkrani extends StatelessWidget {
 
     // Ürün Kataloğu Yönetimi (Yöneticiler için: Genel veya Birim Yöneticisi)
     bool katalogGorsun = yetki == 'genel' || yetki == 'birim';
+
+    // Gün Sonu Satış Girişi (Genel veya Coffee Go birim yöneticisi)
+    bool topluSatisGorsun =
+        yetki == 'genel' || (yetki == 'birim' && hedefBirim == 'Coffee Go');
 
     return Scaffold(
       backgroundColor: Colors.grey[200],
@@ -72,7 +77,17 @@ class BirimSecimEkrani extends StatelessWidget {
                   sayfa: const CoffeeGoAnalizEkrani(),
                 ),
 
-              // 3. ÜRÜN KATALOG YÖNETİMİ (Bar Müdürü / Yöneticiler)
+              // 3. GÜN SONU SATIŞ GİRİŞİ (YENİ)
+              if (topluSatisGorsun)
+                _birimKarti(
+                  context,
+                  baslik: 'Gün Sonu Satış Girişi',
+                  ikon: Icons.playlist_add_check,
+                  renk: Colors.teal[700]!,
+                  sayfa: const TopluSatisEkrani(),
+                ),
+
+              // 4. ÜRÜN KATALOG YÖNETİMİ (Bar Müdürü / Yöneticiler)
               if (katalogGorsun)
                 _birimKarti(
                   context,
@@ -81,8 +96,6 @@ class BirimSecimEkrani extends StatelessWidget {
                   renk: Colors.teal,
                   sayfa: const UrunYonetimEkrani(),
                 ),
-
-              // BOWLING KISMI BURADAN TAMAMEN KALDIRILDI
             ],
           ),
         ),
