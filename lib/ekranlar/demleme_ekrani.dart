@@ -143,13 +143,15 @@ class _DemlemeEkraniState extends State<DemlemeEkrani> {
 
     try {
       DateTime kayitZamani = _geriyeDonukMu ? _secilenZaman : DateTime.now();
+      DateTime silinmeZamani = kayitZamani.add(
+        const Duration(days: 90),
+      ); // 90 gün sonra sil
 
       await FirebaseFirestore.instance.collection(_koleksiyon).add({
         'tip': widget.tip == Demlemetipi.cay ? 'cay' : 'kahve',
         'demlemeZamani': kayitZamani,
-        'tarih': DateFormat(
-          'yyyy-MM-dd',
-        ).format(kayitZamani), // Günlük gruplama için
+        'tarih': DateFormat('yyyy-MM-dd').format(kayitZamani),
+        'silinmeZamani': silinmeZamani, // ⬅️ YENİ SATIR
       });
 
       if (!mounted) return;

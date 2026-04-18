@@ -73,28 +73,50 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
 
   // --- VERİ TEMİZLEME MANTIĞI (3 AYDAN ESKİLER) ---
   Future<void> _eskiVerileriTemizle() async {
-    DateTime ucAyOnce = DateTime.now().subtract(const Duration(days: 90));
+    // 1. 3 ay öncesinin tarihini hesapla
+    final DateTime ucAyOnce = DateTime.now().subtract(const Duration(days: 90));
+
     try {
-      var eskiKayitlar = await FirebaseFirestore.instance
-          .collection('pastalar')
-          .where('eklenmeZamani', isLessThan: ucAyOnce)
-          .get();
+      // 2. Her bir koleksiyon için 3 aydan eski kayıtları bul ve sil
+      final koleksiyonlar = [
+        'pastalar',
+        'cay_demlemeleri',
+        'kahve_demlemeleri',
+      ];
+      int toplamSilinen = 0;
 
-      if (eskiKayitlar.docs.isEmpty) {
-        _mesajGoster('Temizlenecek eski veri bulunamadı.', Colors.blueGrey);
-        return;
+      for (String koleksiyonAdi in koleksiyonlar) {
+        // Her koleksiyonun tarih alanının adı farklı olabilir, dikkat et!
+        String tarihAlani = (koleksiyonAdi == 'pastalar')
+            ? 'eklenmeZamani'
+            : 'demlemeZamani';
+
+        final eskiKayitlar = await FirebaseFirestore.instance
+            .collection(koleksiyonAdi)
+            .where(tarihAlani, isLessThan: ucAyOnce)
+            .get();
+
+        // Toplu silme işlemi için bir batch oluştur (daha performanslı)
+        final batch = FirebaseFirestore.instance.batch();
+        for (var doc in eskiKayitlar.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+
+        toplamSilinen += eskiKayitlar.docs.length;
       }
 
-      for (var doc in eskiKayitlar.docs) {
-        await doc.reference.delete();
+      // 3. Kullanıcıya bilgi ver
+      if (mounted) {
+        _mesajGoster(
+          '$toplamSilinen adet eski kayıt başarıyla silindi!',
+          Colors.green,
+        );
       }
-
-      _mesajGoster(
-        '${eskiKayitlar.docs.length} adet eski kayıt silindi!',
-        Colors.green,
-      );
     } catch (e) {
-      _mesajGoster('Hata oluştu: $e', Colors.red);
+      if (mounted) {
+        _mesajGoster('Temizlik sırasında bir hata oluştu: $e', Colors.red);
+      }
     }
   }
 
