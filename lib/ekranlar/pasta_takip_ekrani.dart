@@ -368,32 +368,13 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
                 subtitle: Text(
                   'Adet: ${p['adet']} | SKT: ${DateFormat('dd/MM HH:mm').format(skt)}\n$durumMesaji',
                 ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.point_of_sale,
-                        color: Colors.green,
-                        size: 30,
-                      ),
-                      onPressed: () => _satildiIsaretle(
-                        p.id,
-                        p['isim'],
-                        p['adet'],
-                        p['satilanAdet'],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.delete_forever,
-                        color: Colors.red,
-                        size: 30,
-                      ),
-                      onPressed: () => _imhaEt(p.id, p['isim'], p['adet']),
-                    ),
-                  ],
+                trailing: IconButton(
+                  icon: const Icon(
+                    Icons.delete_forever,
+                    color: Colors.red,
+                    size: 30,
+                  ),
+                  onPressed: () => _imhaEt(p.id, p['isim'], p['adet']),
                 ),
               ),
             );
