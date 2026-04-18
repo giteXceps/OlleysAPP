@@ -73,30 +73,31 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
 
   // --- VERİ TEMİZLEME MANTIĞI (3 AYDAN ESKİLER) ---
   Future<void> _eskiVerileriTemizle() async {
-    // 1. 3 ay öncesinin tarihini hesapla
     final DateTime ucAyOnce = DateTime.now().subtract(const Duration(days: 90));
-
     try {
-      // 2. Her bir koleksiyon için 3 aydan eski kayıtları bul ve sil
       final koleksiyonlar = [
         'pastalar',
         'cay_demlemeleri',
         'kahve_demlemeleri',
+        'dolap_sicakliklari', // Yeni eklenen
       ];
       int toplamSilinen = 0;
 
       for (String koleksiyonAdi in koleksiyonlar) {
-        // Her koleksiyonun tarih alanının adı farklı olabilir, dikkat et!
-        String tarihAlani = (koleksiyonAdi == 'pastalar')
-            ? 'eklenmeZamani'
-            : 'demlemeZamani';
+        String tarihAlani;
+        if (koleksiyonAdi == 'pastalar') {
+          tarihAlani = 'eklenmeZamani';
+        } else if (koleksiyonAdi == 'dolap_sicakliklari') {
+          tarihAlani = 'kayitZamani';
+        } else {
+          tarihAlani = 'demlemeZamani';
+        }
 
         final eskiKayitlar = await FirebaseFirestore.instance
             .collection(koleksiyonAdi)
             .where(tarihAlani, isLessThan: ucAyOnce)
             .get();
 
-        // Toplu silme işlemi için bir batch oluştur (daha performanslı)
         final batch = FirebaseFirestore.instance.batch();
         for (var doc in eskiKayitlar.docs) {
           batch.delete(doc.reference);
@@ -106,16 +107,12 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
         toplamSilinen += eskiKayitlar.docs.length;
       }
 
-      // 3. Kullanıcıya bilgi ver
       if (mounted) {
-        _mesajGoster(
-          '$toplamSilinen adet eski kayıt başarıyla silindi!',
-          Colors.green,
-        );
+        _mesajGoster('$toplamSilinen adet eski kayıt silindi!', Colors.green);
       }
     } catch (e) {
       if (mounted) {
-        _mesajGoster('Temizlik sırasında bir hata oluştu: $e', Colors.red);
+        _mesajGoster('Temizlik hatası: $e', Colors.red);
       }
     }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'pasta_takip_ekrani.dart';
 import 'demleme_ekrani.dart';
 import 'giris_ekrani.dart';
+import 'dolap_sicaklik_ekrani.dart';
 
 class CoffeeGoAnaEkrani extends StatelessWidget {
   const CoffeeGoAnaEkrani({super.key});
@@ -51,8 +52,8 @@ class CoffeeGoAnaEkrani extends StatelessWidget {
               baslik: 'Dolap Sıcaklığı',
               ikon: Icons.ac_unit,
               renk: Colors.blue,
-              aciklama: '3 saatte bir dolap derecelerini kontrol et ve not al.',
-              sayfa: null,
+              aciklama: 'Dolap sıcaklıklarını kaydet ve günlük takip et.',
+              sayfa: const DolapSicaklikEkrani(), // null yerine bu
             ),
             _islemKarti(
               context,
