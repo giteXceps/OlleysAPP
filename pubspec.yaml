@@ -1,5 +1,5 @@
-name: olleys_app
-description: "A new Flutter project."
+name: CoffeeGO_APP
+description: "CoffeeGo management app for coffee shop owners to track sales, inventory, and customer data."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -38,6 +38,7 @@ dependencies:
   cloud_firestore: ^6.3.0
   intl: ^0.20.2
   fl_chart: ^1.2.0
+  msix: ^3.16.13
 
 dev_dependencies:
   flutter_test:
@@ -97,3 +98,14 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/icon/app_icon.png"
   min_sdk_android: 21
+
+  dependency_overrides:
+  cloud_firestore: 5.6.9
+
+  msix_config:
+  display_name: Olleys
+  publisher_display_name: OlleysApp
+  identity_name: com.olleys.app
+  msix_version: 1.0.0.0
+  logo_path: assets/icon/icon.png   # Kendi ikon yolun neyse onu yaz
+  store: false                       # Store'a yüklemediğimiz için false
