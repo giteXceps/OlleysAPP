@@ -211,6 +211,48 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
     );
   }
 
+  // --- YENİ EKLENEN KOD: Tekli İmha Fonksiyonu ---
+  Future<void> _tekliImhaEt(String id, String isim, int mevcutAdet) async {
+    if (mevcutAdet > 0) {
+      // Adedi 1 eksiltiyoruz
+      int yeniAdet = mevcutAdet - 1;
+      // Eğer son ürün imha edildiyse durumu güncelliyoruz, aksi halde Rafta kalıyor
+      String yeniDurum = yeniAdet == 0 ? 'İmha Edildi' : 'Rafta';
+
+      // Veritabanını güncelliyoruz
+      await FirebaseFirestore.instance.collection('pastalar').doc(id).update({
+        'adet': yeniAdet,
+        'durum': yeniDurum,
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+
+      // Kullanıcıya bilgi veriyoruz ve Geri Al seçeneği sunuyoruz
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 5),
+          backgroundColor: Colors.orange.shade800,
+          content: Text(
+            '$isim ürününden 1 adet imha edildi. (Kalan: $yeniAdet)',
+          ),
+          action: SnackBarAction(
+            label: 'GERİ AL',
+            textColor: Colors.white,
+            onPressed: () async {
+              // Geri al tuşuna basılırsa eski adedi ve durumu geri yüklüyoruz
+              await FirebaseFirestore.instance
+                  .collection('pastalar')
+                  .doc(id)
+                  .update({'durum': 'Rafta', 'adet': mevcutAdet});
+            },
+          ),
+        ),
+      );
+    }
+  }
+  // ----------------------------------------------
+
   @override
   Widget build(BuildContext context) {
     bool isTablet = MediaQuery.of(context).size.width > 600;
@@ -349,13 +391,13 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
             String durumMesaji = "";
             if (kalanSure.isNegative) {
               kartRengi = Colors.grey.shade300;
-              durumMesaji = "SÜRESİ DOLDU!";
+              durumMesaji = "SKT GEÇTİ!";
             } else if (kalanSure.inHours < 2) {
               kartRengi = Colors.red.shade100;
-              durumMesaji = "ACİL KALDIRIN!";
+              durumMesaji = "2 SAAT KALDI!";
             } else if (kalanSure.inHours < 12) {
               kartRengi = Colors.orange.shade100;
-              durumMesaji = "Bugün son!";
+              durumMesaji = "12 SAAT KALDI!";
             }
 
             return Card(
@@ -368,14 +410,35 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
                 subtitle: Text(
                   'Adet: ${p['adet']} | SKT: ${DateFormat('dd/MM HH:mm').format(skt)}\n$durumMesaji',
                 ),
-                trailing: IconButton(
-                  icon: const Icon(
-                    Icons.delete_forever,
-                    color: Colors.red,
-                    size: 30,
-                  ),
-                  onPressed: () => _imhaEt(p.id, p['isim'], p['adet']),
+                // --- DEĞİŞTİRİLEN KOD: Butonların Yan Yana Geldiği Kısım ---
+                trailing: Row(
+                  mainAxisSize:
+                      MainAxisSize.min, // Sadece gerektiği kadar yer kapla
+                  children: [
+                    // 1. Buton: Tekli İmha Butonu (Eksi İkonu)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.remove_circle_outline,
+                        color: Colors.orange,
+                        size: 28,
+                      ),
+                      tooltip: '1 Adet İmha Et', // Üzerine gelince çıkacak yazı
+                      onPressed: () => _tekliImhaEt(p.id, p['isim'], p['adet']),
+                    ),
+
+                    // 2. Buton: Toplu İmha Butonu (Mevcut Çöp Kutusu İkonu)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete_forever,
+                        color: Colors.red,
+                        size: 30,
+                      ),
+                      tooltip: 'Tümünü İmha Et', // Üzerine gelince çıkacak yazı
+                      onPressed: () => _imhaEt(p.id, p['isim'], p['adet']),
+                    ),
+                  ],
                 ),
+                // -----------------------------------------------------------
               ),
             );
           },
