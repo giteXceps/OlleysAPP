@@ -79,7 +79,7 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
         'pastalar',
         'cay_demlemeleri',
         'kahve_demlemeleri',
-        'dolap_sicakliklari', // Yeni eklenen
+        'dolap_sicakliklari',
       ];
       int toplamSilinen = 0;
 
@@ -207,12 +207,12 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
               decoration: const InputDecoration(labelText: 'Yetki Seviyesi'),
             ),
             const SizedBox(height: 16),
+            // Bowling kaldırıldı — sadece Coffee Go
             DropdownButtonFormField<String>(
               value: _secilenBirim,
               items: [
                 'Coffee Go',
                 'Genel',
-                'Bowling',
               ].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
               onChanged: (v) => setState(() => _secilenBirim = v!),
               decoration: const InputDecoration(labelText: 'Birim Tanımla'),
@@ -239,14 +239,14 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
             ),
             const SizedBox(height: 16),
 
-            // --- KULLANICI LİSTESİ (STREAMBUILDER) ---
             StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('users')
                   .snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData)
+                if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
+                }
                 var docs = snapshot.data!.docs;
                 return ListView.builder(
                   shrinkWrap: true,
@@ -262,7 +262,7 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
                           "Rol: ${u['rol']} | Birim: ${u['birim']}",
                         ),
                         trailing: u['rol'] == 'root'
-                            ? null // Root kullanıcısı kendisini veya diğer rootları buradan silemesin (opsiyonel)
+                            ? null
                             : IconButton(
                                 icon: const Icon(
                                   Icons.delete,

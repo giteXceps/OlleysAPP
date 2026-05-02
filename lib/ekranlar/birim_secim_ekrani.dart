@@ -1,27 +1,22 @@
 import 'package:flutter/material.dart';
 import 'coffee_go_ana_ekrani.dart';
 import 'coffee_go_analiz_ekrani.dart';
-import 'demleme_analiz_ekrani.dart'; // YENİ
+import 'demleme_analiz_ekrani.dart';
 import 'giris_ekrani.dart';
 import 'toplu_satis_ekrani.dart';
 import 'urun_yonetim_ekrani.dart';
 
 class BirimSecimEkrani extends StatelessWidget {
-  final String yetki;
+  final String yetki; // 'genel' veya 'birim'
   final String? hedefBirim;
 
   const BirimSecimEkrani({super.key, required this.yetki, this.hedefBirim});
 
   @override
   Widget build(BuildContext context) {
-    // --- GÖRÜNÜRLÜK MANTIĞI ---
-    bool coffeeGoGorsun = yetki == 'genel' || hedefBirim == 'Coffee Go';
-    bool analizGorsun =
-        yetki == 'genel' || (yetki == 'birim' && hedefBirim == 'Coffee Go');
-    bool topluSatisGorsun =
-        yetki == 'genel' || (yetki == 'birim' && hedefBirim == 'Coffee Go');
-    bool katalogGorsun = yetki == 'genel' || yetki == 'birim';
-    bool demlemeAnalizGorsun =
+    // Uygulama sadece Coffee Go — genel yönetici her şeyi,
+    // birim yöneticisi de Coffee Go'ya atanmışsa aynı şeyi görür.
+    final bool yetkili =
         yetki == 'genel' || (yetki == 'birim' && hedefBirim == 'Coffee Go');
 
     return Scaffold(
@@ -47,57 +42,56 @@ class BirimSecimEkrani extends StatelessWidget {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Wrap(
-            spacing: 20,
-            runSpacing: 20,
-            alignment: WrapAlignment.center,
-            children: [
-              if (coffeeGoGorsun)
-                _birimKarti(
-                  context,
-                  baslik: 'Coffee Go İşlemleri',
-                  ikon: Icons.coffee,
-                  renk: Colors.brown,
-                  sayfa: const CoffeeGoAnaEkrani(),
+          child: yetkili
+              ? Wrap(
+                  spacing: 20,
+                  runSpacing: 20,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    _birimKarti(
+                      context,
+                      baslik: 'Coffee Go İşlemleri',
+                      ikon: Icons.coffee,
+                      renk: Colors.brown,
+                      sayfa: const CoffeeGoAnaEkrani(),
+                    ),
+                    _birimKarti(
+                      context,
+                      baslik: 'Coffee Go Analiz',
+                      ikon: Icons.analytics,
+                      renk: Colors.blueGrey,
+                      sayfa: const CoffeeGoAnalizEkrani(),
+                    ),
+                    _birimKarti(
+                      context,
+                      baslik: 'Gün Sonu Satış Girişi',
+                      ikon: Icons.playlist_add_check,
+                      renk: Colors.teal[700]!,
+                      sayfa: const TopluSatisEkrani(),
+                    ),
+                    _birimKarti(
+                      context,
+                      baslik: 'Demleme Analizi',
+                      ikon: Icons.local_cafe,
+                      renk: Colors.deepOrange[700]!,
+                      sayfa: const DemlemeAnalizEkrani(),
+                    ),
+                    _birimKarti(
+                      context,
+                      baslik: 'Ürün Kataloğunu Yönet',
+                      ikon: Icons.settings_suggest,
+                      renk: Colors.teal,
+                      sayfa: const UrunYonetimEkrani(),
+                    ),
+                  ],
+                )
+              : const Center(
+                  child: Text(
+                    'Bu hesabın yetkisi için tanımlı birim bulunamadı.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ),
-
-              if (analizGorsun)
-                _birimKarti(
-                  context,
-                  baslik: 'Coffee Go Analiz',
-                  ikon: Icons.analytics,
-                  renk: Colors.blueGrey,
-                  sayfa: const CoffeeGoAnalizEkrani(),
-                ),
-
-              if (topluSatisGorsun)
-                _birimKarti(
-                  context,
-                  baslik: 'Gün Sonu Satış Girişi',
-                  ikon: Icons.playlist_add_check,
-                  renk: Colors.teal[700]!,
-                  sayfa: const TopluSatisEkrani(),
-                ),
-
-              if (demlemeAnalizGorsun)
-                _birimKarti(
-                  context,
-                  baslik: 'Demleme Analizi',
-                  ikon: Icons.local_cafe,
-                  renk: Colors.deepOrange[700]!,
-                  sayfa: const DemlemeAnalizEkrani(),
-                ),
-
-              if (katalogGorsun)
-                _birimKarti(
-                  context,
-                  baslik: 'Ürün Kataloğunu Yönet',
-                  ikon: Icons.settings_suggest,
-                  renk: Colors.teal,
-                  sayfa: const UrunYonetimEkrani(),
-                ),
-            ],
-          ),
         ),
       ),
     );
@@ -116,10 +110,6 @@ class BirimSecimEkrani extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => sayfa),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Bu bölüm henüz aktif değil.')),
           );
         }
       },
