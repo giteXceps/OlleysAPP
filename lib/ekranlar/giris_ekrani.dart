@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'birim_secim_ekrani.dart';
 import 'coffee_go_ana_ekrani.dart';
-import 'root_yonetim_ekrani.dart'; // Bu dosyayı aşağıda oluşturacağız
+import 'root_yonetim_ekrani.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class GirisEkrani extends StatefulWidget {
   const GirisEkrani({super.key});
@@ -37,6 +38,9 @@ class _GirisEkraniState extends State<GirisEkrani> {
         var veri = userDoc.docs.first.data();
         String rol = veri['rol'];
         String birim = veri['birim'] ?? '';
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('aktifKullanici', girilenAd);
 
         if (!mounted) return;
 

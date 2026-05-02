@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PastaTakipEkrani extends StatefulWidget {
   const PastaTakipEkrani({super.key});
@@ -164,12 +165,40 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
     }
   }
 
+  Future<void> _logKaydet(String isim, int adet) async {
+    try {
+      // Hafızadan aktif kullanıcıyı alıyoruz
+      final prefs = await SharedPreferences.getInstance();
+      String kullanici =
+          prefs.getString('aktifKullanici') ?? 'Bilinmeyen Kullanıcı';
+
+      // Firestore'a logu gönderiyoruz
+      await FirebaseFirestore.instance.collection('imha_loglari').add({
+        'kullanici': kullanici,
+        'urun': isim,
+        'adet': adet,
+        'tarih': DateTime.now(),
+      });
+
+      // Geliştirici konsoluna başarılı yazısı düşürelim ki çalıştığını görelim
+      debugPrint("Başarılı: $isim loglandı!");
+    } catch (e) {
+      debugPrint("Log kaydetme hatası: $e");
+    }
+  }
+
+  // --- GÜNCELLENMİŞ TOPLU İMHA FONKSİYONU ---
   Future<void> _imhaEt(String id, String isim, int mevcutAdet) async {
+    // 1. Veritabanında durumu güncelle
     await FirebaseFirestore.instance.collection('pastalar').doc(id).update({
       'durum': 'İmha Edildi',
       'adet': 0,
     });
 
+    // 2. YENİ EKLENEN KISIM: İşlem biter bitmez logu kaydet!
+    await _logKaydet(isim, mevcutAdet);
+
+    // 3. Arayüz bildirimleri (SnackBar)
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
 
@@ -177,30 +206,12 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
       SnackBar(
         duration: const Duration(seconds: 10),
         backgroundColor: Colors.red.shade900,
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('$isim imha edildi. Kayıtlar güncellendi.'),
-            const SizedBox(height: 8),
-            TweenAnimationBuilder<double>(
-              duration: const Duration(seconds: 10),
-              tween: Tween(begin: 1.0, end: 0.0),
-              builder: (context, value, child) {
-                return LinearProgressIndicator(
-                  value: value,
-                  backgroundColor: Colors.white24,
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                  minHeight: 2,
-                );
-              },
-            ),
-          ],
-        ),
+        content: Text('$isim imha edildi. Kayıtlar güncellendi.'),
         action: SnackBarAction(
           label: 'GERİ AL',
           textColor: Colors.white,
           onPressed: () async {
+            // Geri alınırsa durumu düzeltiyoruz (İstersen buraya log silme de eklenebilir)
             await FirebaseFirestore.instance
                 .collection('pastalar')
                 .doc(id)
@@ -211,24 +222,25 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
     );
   }
 
-  // --- YENİ EKLENEN KOD: Tekli İmha Fonksiyonu ---
+  // --- GÜNCELLENMİŞ TEKLİ İMHA FONKSİYONU ---
   Future<void> _tekliImhaEt(String id, String isim, int mevcutAdet) async {
     if (mevcutAdet > 0) {
-      // Adedi 1 eksiltiyoruz
       int yeniAdet = mevcutAdet - 1;
-      // Eğer son ürün imha edildiyse durumu güncelliyoruz, aksi halde Rafta kalıyor
       String yeniDurum = yeniAdet == 0 ? 'İmha Edildi' : 'Rafta';
 
-      // Veritabanını güncelliyoruz
+      // 1. Veritabanında adedi güncelle
       await FirebaseFirestore.instance.collection('pastalar').doc(id).update({
         'adet': yeniAdet,
         'durum': yeniDurum,
       });
 
+      // 2. YENİ EKLENEN KISIM: 1 adet imha edildiğini loglara kaydet!
+      await _logKaydet(isim, 1);
+
+      // 3. Arayüz bildirimleri (SnackBar)
       if (!mounted) return;
       ScaffoldMessenger.of(context).clearSnackBars();
 
-      // Kullanıcıya bilgi veriyoruz ve Geri Al seçeneği sunuyoruz
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           duration: const Duration(seconds: 5),
@@ -240,7 +252,6 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
             label: 'GERİ AL',
             textColor: Colors.white,
             onPressed: () async {
-              // Geri al tuşuna basılırsa eski adedi ve durumu geri yüklüyoruz
               await FirebaseFirestore.instance
                   .collection('pastalar')
                   .doc(id)
@@ -251,7 +262,6 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
       );
     }
   }
-  // ----------------------------------------------
 
   @override
   Widget build(BuildContext context) {
