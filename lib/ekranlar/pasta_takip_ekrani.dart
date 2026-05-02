@@ -165,40 +165,43 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
     }
   }
 
-  Future<void> _logKaydet(String isim, int adet) async {
+  // --- 1. GÜNCELLENMİŞ LOG KAYDETME FONKSİYONU ---
+  // Artık sadece logu kaydetmiyor, oluşturduğu logun ID'sini bize geri veriyor.
+  Future<String?> _logKaydet(String isim, int adet) async {
     try {
-      // Hafızadan aktif kullanıcıyı alıyoruz
       final prefs = await SharedPreferences.getInstance();
       String kullanici =
           prefs.getString('aktifKullanici') ?? 'Bilinmeyen Kullanıcı';
 
-      // Firestore'a logu gönderiyoruz
-      await FirebaseFirestore.instance.collection('imha_loglari').add({
-        'kullanici': kullanici,
-        'urun': isim,
-        'adet': adet,
-        'tarih': DateTime.now(),
-      });
+      // add() işlemi bir DocumentReference döndürür. Bunu docRef'e eşitliyoruz.
+      var docRef = await FirebaseFirestore.instance
+          .collection('imha_loglari')
+          .add({
+            'kullanici': kullanici,
+            'urun': isim,
+            'adet': adet,
+            'tarih': DateTime.now(),
+          });
 
-      // Geliştirici konsoluna başarılı yazısı düşürelim ki çalıştığını görelim
-      debugPrint("Başarılı: $isim loglandı!");
+      // Kayıt başarılıysa oluşturulan belgenin ID'sini geri gönder
+      return docRef.id;
     } catch (e) {
       debugPrint("Log kaydetme hatası: $e");
+      return null;
     }
   }
 
-  // --- GÜNCELLENMİŞ TOPLU İMHA FONKSİYONU ---
+  // --- 2. GÜNCELLENMİŞ TOPLU İMHA FONKSİYONU ---
   Future<void> _imhaEt(String id, String isim, int mevcutAdet) async {
-    // 1. Veritabanında durumu güncelle
+    // 1. Ürünü raftan kaldır
     await FirebaseFirestore.instance.collection('pastalar').doc(id).update({
       'durum': 'İmha Edildi',
       'adet': 0,
     });
 
-    // 2. YENİ EKLENEN KISIM: İşlem biter bitmez logu kaydet!
-    await _logKaydet(isim, mevcutAdet);
+    // 2. Logu kaydet ve bize verdiği ID'yi değişkende tut!
+    String? logId = await _logKaydet(isim, mevcutAdet);
 
-    // 3. Arayüz bildirimleri (SnackBar)
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
 
@@ -211,33 +214,40 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
           label: 'GERİ AL',
           textColor: Colors.white,
           onPressed: () async {
-            // Geri alınırsa durumu düzeltiyoruz (İstersen buraya log silme de eklenebilir)
+            // A. Ürünü tekrar rafa koy (Stoku düzelt)
             await FirebaseFirestore.instance
                 .collection('pastalar')
                 .doc(id)
                 .update({'durum': 'Rafta', 'adet': mevcutAdet});
+
+            // B. YENİ KOD: Eğer log başarıyla oluşmuşsa (logId null değilse), o logu veritabanından sil!
+            if (logId != null) {
+              await FirebaseFirestore.instance
+                  .collection('imha_loglari')
+                  .doc(logId)
+                  .delete();
+            }
           },
         ),
       ),
     );
   }
 
-  // --- GÜNCELLENMİŞ TEKLİ İMHA FONKSİYONU ---
+  // --- 3. GÜNCELLENMİŞ TEKLİ İMHA FONKSİYONU ---
   Future<void> _tekliImhaEt(String id, String isim, int mevcutAdet) async {
     if (mevcutAdet > 0) {
       int yeniAdet = mevcutAdet - 1;
       String yeniDurum = yeniAdet == 0 ? 'İmha Edildi' : 'Rafta';
 
-      // 1. Veritabanında adedi güncelle
+      // 1. Stoktan 1 adet düş
       await FirebaseFirestore.instance.collection('pastalar').doc(id).update({
         'adet': yeniAdet,
         'durum': yeniDurum,
       });
 
-      // 2. YENİ EKLENEN KISIM: 1 adet imha edildiğini loglara kaydet!
-      await _logKaydet(isim, 1);
+      // 2. Logu kaydet ve ID'sini tut!
+      String? logId = await _logKaydet(isim, 1);
 
-      // 3. Arayüz bildirimleri (SnackBar)
       if (!mounted) return;
       ScaffoldMessenger.of(context).clearSnackBars();
 
@@ -252,10 +262,19 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
             label: 'GERİ AL',
             textColor: Colors.white,
             onPressed: () async {
+              // A. Stok miktarını eski haline getir
               await FirebaseFirestore.instance
                   .collection('pastalar')
                   .doc(id)
                   .update({'durum': 'Rafta', 'adet': mevcutAdet});
+
+              // B. YENİ KOD: Tutulan ID'ye ait logu sil!
+              if (logId != null) {
+                await FirebaseFirestore.instance
+                    .collection('imha_loglari')
+                    .doc(logId)
+                    .delete();
+              }
             },
           ),
         ),

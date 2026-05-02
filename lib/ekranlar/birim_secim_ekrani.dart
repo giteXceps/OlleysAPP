@@ -6,6 +6,7 @@ import 'giris_ekrani.dart';
 import 'toplu_satis_ekrani.dart';
 import 'urun_yonetim_ekrani.dart';
 import 'imha_loglari_ekrani.dart';
+import 'satis_loglari_ekrani.dart';
 
 class BirimSecimEkrani extends StatelessWidget {
   final String yetki; // 'genel' veya 'birim'
@@ -95,6 +96,13 @@ class BirimSecimEkrani extends StatelessWidget {
                     ikon: Icons.history,
                     renk: Colors.red[800]!,
                     sayfa: const ImhaLoglariEkrani(),
+                  ),
+                  _birimKarti(
+                    context,
+                    baslik: 'Satış Logları',
+                    ikon: Icons.receipt_long,
+                    renk: Colors.teal[800]!,
+                    sayfa: const SatisLoglariEkrani(),
                   ),
                 ],
               ),

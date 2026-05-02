@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class TopluSatisEkrani extends StatefulWidget {
   const TopluSatisEkrani({super.key});
@@ -152,6 +153,7 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
           toplamGuncellenen++;
         }
       }
+      await _satisLogKaydet(satislar);
 
       if (mounted) {
         _adetControllers.forEach((_, c) => c.clear());
@@ -172,6 +174,27 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
       if (mounted) _mesajGoster('Hata oluştu: $e', Colors.red);
     } finally {
       if (mounted) setState(() => _islemYapiliyor = false);
+    }
+  }
+
+  Future<void> _satisLogKaydet(Map<String, int> satislar) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String kullanici =
+          prefs.getString('aktifKullanici') ?? 'Bilinmeyen Kullanıcı';
+
+      // Sepetteki toplam ürün sayısını hesaplıyoruz
+      int toplamAdet = satislar.values.fold(0, (a, b) => a + b);
+
+      await FirebaseFirestore.instance.collection('satis_loglari').add({
+        'kullanici': kullanici,
+        'toplamAdet': toplamAdet, // O işlemdeki toplam ürün sayısı
+        'detaylar':
+            satislar, // Hangi üründen kaç tane olduğu veritabanına Map (Sözlük) olarak kaydedilir
+        'tarih': DateTime.now(),
+      });
+    } catch (e) {
+      debugPrint("Satış log hatası: $e");
     }
   }
 
