@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -15,10 +16,26 @@
     the `--base-href` argument provided to `flutter build`.
   -->
   <base href="$FLUTTER_BASE_HREF">
-
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        let eskiBekciSilindi = false;
+        for (let registration of registrations) {
+          registration.unregister();
+          eskiBekciSilindi = true;
+          console.log('Eski versiyon temizlendi.');
+        }
+        // Eğer eski bir bekçi silindiyse, sayfayı otomatik olarak en güncel haliyle yenile
+        if (eskiBekciSilindi) {
+          window.location.reload(true);
+        }
+      });
+    }
+  </script>
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="CoffeeGo management app for coffee shop owners to track sales, inventory, and customer data.">
+  <meta name="description"
+    content="CoffeeGo management app for coffee shop owners to track sales, inventory, and customer data.">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -27,30 +44,31 @@
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" type="image/png" href="favicon.png" />
 
   <title>CoffeeGO_APP</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <script>
   // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+  import { initializeApp } from "firebase/app";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyBWwGC9yiuDo-OttuMX3JFzSVsXFsQHwXs",
-  authDomain: "olleysapp.firebaseapp.com",
-  projectId: "olleysapp",
-  storageBucket: "olleysapp.firebasestorage.app",
-  messagingSenderId: "102939880838",
-  appId: "1:102939880838:web:035844830706dd2701d007"
-};
+  // Your web app's Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyBWwGC9yiuDo-OttuMX3JFzSVsXFsQHwXs",
+    authDomain: "olleysapp.firebaseapp.com",
+    projectId: "olleysapp",
+    storageBucket: "olleysapp.firebasestorage.app",
+    messagingSenderId: "102939880838",
+    appId: "1:102939880838:web:035844830706dd2701d007"
+  };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
 </script>
+
 <body>
   <!--
     You can customize the "flutter_bootstrap.js" script.
@@ -62,4 +80,5 @@ const app = initializeApp(firebaseConfig);
   -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
+
 </html>

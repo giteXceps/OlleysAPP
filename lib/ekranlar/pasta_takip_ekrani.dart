@@ -29,22 +29,14 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
     );
 
     if (pickedDate != null) {
-      final TimeOfDay? pickedTime = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.fromDateTime(_secilenTarih),
-      );
-
-      if (pickedTime != null) {
-        setState(() {
-          _secilenTarih = DateTime(
-            pickedDate.year,
-            pickedDate.month,
-            pickedDate.day,
-            pickedTime.hour,
-            pickedTime.minute,
-          );
-        });
-      }
+      setState(() {
+        // Saat, dakika ve saniyeyi tamamen sıfırlıyoruz
+        _secilenTarih = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+        );
+      });
     }
   }
 
@@ -61,10 +53,12 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
       return;
     }
 
-    // 2. Zaman Hesaplamaları
-    DateTime eklenmeZamani = _geriyeDonukMu ? _secilenTarih : DateTime.now();
+    DateTime simdi = DateTime.now();
+    DateTime eklenmeZamani = _geriyeDonukMu
+        ? _secilenTarih
+        : DateTime(simdi.year, simdi.month, simdi.day);
 
-    // Raf ömrüne göre SKT hesapla (Artık dinamik gelen _secilenUrunRafOmru kullanılıyor)
+    // SKT hesaplaması artık tam gün üzerinden dönecek
     DateTime skt = eklenmeZamani.add(Duration(days: _secilenUrunRafOmru!));
 
     // Veritabanından otomatik silinme tarihi (6 Ay = 182 Gün)
@@ -412,21 +406,34 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: pastalar.length,
           itemBuilder: (context, index) {
+            // build içindeki liste döngüsünde:
             var p = pastalar[index];
-            DateTime skt = (p['sktZamani'] as Timestamp).toDate();
-            Duration kalanSure = skt.difference(DateTime.now());
+            DateTime sktHam = (p['sktZamani'] as Timestamp).toDate();
+
+            // 2. Normalizasyon: Saatleri sıfırlayarak sadece takvim gününe bakıyoruz
+            DateTime sktSadeceGun = DateTime(
+              sktHam.year,
+              sktHam.month,
+              sktHam.day,
+            );
+            DateTime simdi = DateTime.now();
+            DateTime bugun = DateTime(simdi.year, simdi.month, simdi.day);
+
+            // 3. Aradaki tam gün farkını hesapla (Örn: Bugün 23'ü, SKT 22 ise sonuç -1 çıkar)
+            int fark = sktSadeceGun.difference(bugun).inDays;
 
             Color kartRengi = Colors.white;
             String durumMesaji = "";
-            if (kalanSure.isNegative) {
+
+            if (fark < 0) {
               kartRengi = Colors.grey.shade300;
               durumMesaji = "SKT GEÇTİ!";
-            } else if (kalanSure.inHours < 2) {
+            } else if (fark == 0) {
               kartRengi = Colors.red.shade100;
-              durumMesaji = "2 SAAT KALDI!";
-            } else if (kalanSure.inHours < 12) {
+              durumMesaji = "SON GÜN!";
+            } else if (fark == 1) {
               kartRengi = Colors.orange.shade100;
-              durumMesaji = "12 SAAT KALDI!";
+              durumMesaji = "YARIN SON!";
             }
 
             return Card(
@@ -437,7 +444,7 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 subtitle: Text(
-                  'Adet: ${p['adet']} | SKT: ${DateFormat('dd/MM HH:mm').format(skt)}\n$durumMesaji',
+                  'Adet: ${p['adet']} | SKT: ${DateFormat('dd/MM').format(sktHam)}\n$durumMesaji',
                 ),
                 // --- DEĞİŞTİRİLEN KOD: Butonların Yan Yana Geldiği Kısım ---
                 trailing: Row(

@@ -41,18 +41,16 @@ class BirimSecimEkrani extends StatelessWidget {
         ],
       ),
       body: yetkili
-          // YENİ UYGULAMA: SingleChildScrollView ve Wrap yerine Padding ve GridView kullanıyoruz.
+          // YENİ EKLENEN KOD: GridView.count yerine GridView.extent kullanıyoruz.
           ? Padding(
-              padding: const EdgeInsets.all(
-                16.0,
-              ), // Kenarlardan rahat bir boşluk bırakıyoruz
-              child: GridView.count(
-                crossAxisCount:
-                    2, // Yan yana 2 adet kart göstermesini istiyoruz
+              padding: const EdgeInsets.all(16.0),
+              child: GridView.extent(
+                // maxCrossAxisExtent: Bir kartın yatayda alabileceği maksimum piksel değeri.
+                // Ekran genişledikçe kartları büyütmek yerine yanlarına yenilerini ekler.
+                maxCrossAxisExtent: 250,
                 crossAxisSpacing: 16, // Kartların aralarındaki yatay boşluk
                 mainAxisSpacing: 16, // Kartların aralarındaki dikey boşluk
-                childAspectRatio:
-                    1.1, // Kartların en/boy oranını (kareye yakın) belirliyoruz. Bu değeri değiştirerek kartların yüksekliğiyle oynayabilirsin.
+                childAspectRatio: 1.1, // Kartların en/boy oranı
                 children: [
                   _birimKarti(
                     context,
@@ -89,10 +87,9 @@ class BirimSecimEkrani extends StatelessWidget {
                     renk: Colors.teal,
                     sayfa: const UrunYonetimEkrani(),
                   ),
-                  // --- YENİ EKLENEN KART: İmha Logları ---
                   _birimKarti(
                     context,
-                    baslik: 'İmha Kayıtları',
+                    baslik: 'İmha Logları',
                     ikon: Icons.history,
                     renk: Colors.red[800]!,
                     sayfa: const ImhaLoglariEkrani(),
@@ -117,7 +114,6 @@ class BirimSecimEkrani extends StatelessWidget {
     );
   }
 
-  // YENİ UYGULAMA: Kartın sabit genişlik ve yükseklik değerlerini kaldırdık.
   Widget _birimKarti(
     BuildContext context, {
     required String baslik,
@@ -135,15 +131,13 @@ class BirimSecimEkrani extends StatelessWidget {
         }
       },
       child: Container(
-        // width ve height satırları silindi, artık GridView boyutlandırmayı devralıyor.
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5)],
         ),
         child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center, // İkon ve metni tam ortaya hizala
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(ikon, size: 40, color: renk),
             const SizedBox(height: 12),
@@ -155,7 +149,7 @@ class BirimSecimEkrani extends StatelessWidget {
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
-                ), // Metni bir tık küçülttük ki sığsın
+                ),
               ),
             ),
           ],
