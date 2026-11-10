@@ -66,7 +66,9 @@ jobs:
           path: build/web
 
       - name: Firebase Hosting'e Yükle
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLEYSAPP != '' }}
+        env:
+          FIREBASE_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLEYSAPP }}
+        if: env.FIREBASE_KEY != ''
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'

@@ -411,91 +411,202 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
           .orderBy('sktZamani', descending: false)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         var pastalar = snapshot.data!.docs;
 
-        if (pastalar.isEmpty) {
-          return const Center(child: Text("Rafta ürün yok."));
-        }
+        // Arama ve SKT filtrelemesi
+        var filtrelenmis = pastalar.where((doc) {
+          final isim = (doc['isim'] as String? ?? '').toLowerCase();
+          if (_aramaMetni.isNotEmpty && !isim.contains(_aramaMetni.toLowerCase())) {
+            return false;
+          }
 
-        return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: pastalar.length,
-          itemBuilder: (context, index) {
-            // build içindeki liste döngüsünde:
-            var p = pastalar[index];
-            DateTime sktHam = (p['sktZamani'] as Timestamp).toDate();
+          if (_sadeceSktYaklasanlar) {
+            final sktHam = (doc['sktZamani'] as Timestamp).toDate();
+            final sktGun = DateTime(sktHam.year, sktHam.month, sktHam.day);
+            final bugun = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+            final fark = sktGun.difference(bugun).inDays;
+            if (fark > 1) return false;
+          }
 
-            // 2. Normalizasyon: Saatleri sıfırlayarak sadece takvim gününe bakıyoruz
-            DateTime sktSadeceGun = DateTime(
-              sktHam.year,
-              sktHam.month,
-              sktHam.day,
-            );
-            DateTime simdi = DateTime.now();
-            DateTime bugun = DateTime(simdi.year, simdi.month, simdi.day);
+          return true;
+        }).toList();
 
-            // 3. Aradaki tam gün farkını hesapla (Örn: Bugün 23'ü, SKT 22 ise sonuç -1 çıkar)
-            int fark = sktSadeceGun.difference(bugun).inDays;
-
-            Color kartRengi = Colors.white;
-            String durumMesaji = "";
-
-            if (fark < 0) {
-              kartRengi = Colors.grey.shade300;
-              durumMesaji = "SKT GEÇTİ!";
-            } else if (fark == 0) {
-              kartRengi = Colors.red.shade100;
-              durumMesaji = "SON GÜN!";
-            } else if (fark == 1) {
-              kartRengi = Colors.orange.shade100;
-              durumMesaji = "YARIN SON!";
-            }
-
-            return Card(
-              color: kartRengi,
-              child: ListTile(
-                title: Text(
-                  p['isim'],
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  'Adet: ${p['adet']} | SKT: ${DateFormat('dd/MM').format(sktHam)}\n$durumMesaji',
-                ),
-                // --- DEĞİŞTİRİLEN KOD: Butonların Yan Yana Geldiği Kısım ---
-                trailing: Row(
-                  mainAxisSize:
-                      MainAxisSize.min, // Sadece gerektiği kadar yer kapla
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Arama ve Filtre Çubuğu
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: Row(
                   children: [
-                    // 1. Buton: Tekli İmha Butonu (Eksi İkonu)
-                    IconButton(
-                      icon: const Icon(
-                        Icons.remove_circle_outline,
-                        color: Colors.orange,
-                        size: 28,
+                    const Icon(Icons.search, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _aramaController,
+                        decoration: const InputDecoration(
+                          hintText: 'Raftaki pastalarda ara...',
+                          border: InputBorder.none,
+                        ),
+                        onChanged: (val) => setState(() => _aramaMetni = val.trim()),
                       ),
-                      tooltip: '1 Adet İmha Et', // Üzerine gelince çıkacak yazı
-                      onPressed: () => _tekliImhaEt(p.id, p['isim'], p['adet']),
                     ),
-
-                    // 2. Buton: Toplu İmha Butonu (Mevcut Çöp Kutusu İkonu)
-                    IconButton(
-                      icon: const Icon(
-                        Icons.delete_forever,
-                        color: Colors.red,
-                        size: 30,
+                    if (_aramaMetni.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: () {
+                          _aramaController.clear();
+                          setState(() => _aramaMetni = '');
+                        },
                       ),
-                      tooltip: 'Tümünü İmha Et', // Üzerine gelince çıkacak yazı
-                      onPressed: () => _imhaEt(p.id, p['isim'], p['adet']),
-                    ),
                   ],
                 ),
-                // -----------------------------------------------------------
               ),
-            );
-          },
+            ),
+            const SizedBox(height: 8),
+
+            // Filtre Butonları
+            Row(
+              children: [
+                FilterChip(
+                  label: Text('Tümü (${pastalar.length})'),
+                  selected: !_sadeceSktYaklasanlar,
+                  onSelected: (val) => setState(() => _sadeceSktYaklasanlar = false),
+                  selectedColor: Colors.pink.shade100,
+                  checkmarkColor: Colors.pink,
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('⚠️ SKT Yaklaşanlar'),
+                  selected: _sadeceSktYaklasanlar,
+                  onSelected: (val) => setState(() => _sadeceSktYaklasanlar = true),
+                  selectedColor: Colors.red.shade100,
+                  checkmarkColor: Colors.red,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            if (filtrelenmis.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Center(
+                  child: Text(
+                    pastalar.isEmpty
+                        ? "Rafta ürün yok."
+                        : "Arama kriterine uygun ürün bulunamadı.",
+                    style: const TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                ),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: filtrelenmis.length,
+                itemBuilder: (context, index) {
+                  var p = filtrelenmis[index];
+                  DateTime sktHam = (p['sktZamani'] as Timestamp).toDate();
+                  DateTime sktSadeceGun = DateTime(sktHam.year, sktHam.month, sktHam.day);
+                  DateTime bugun = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+                  int fark = sktSadeceGun.difference(bugun).inDays;
+
+                  Color kartRengi = Colors.white;
+                  Color rozetRengi = Colors.green;
+                  String durumRozeti = "$fark Gün Kaldı";
+
+                  if (fark < 0) {
+                    kartRengi = Colors.grey.shade200;
+                    rozetRengi = Colors.red.shade900;
+                    durumRozeti = "SKT GEÇTİ";
+                  } else if (fark == 0) {
+                    kartRengi = Colors.red.shade50;
+                    rozetRengi = Colors.red;
+                    durumRozeti = "SON GÜN";
+                  } else if (fark == 1) {
+                    kartRengi = Colors.orange.shade50;
+                    rozetRengi = Colors.orange.shade800;
+                    durumRozeti = "YARIN SON";
+                  }
+
+                  return Card(
+                    color: kartRengi,
+                    elevation: 2,
+                    margin: const EdgeInsets.only(bottom: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.pink.shade50,
+                        child: const Icon(Icons.cake, color: Colors.pink),
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              p['isim'],
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: rozetRengi.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: rozetRengi.withOpacity(0.4)),
+                            ),
+                            child: Text(
+                              durumRozeti,
+                              style: TextStyle(
+                                color: rozetRengi,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text(
+                          'Mevcut Adet: ${p['adet']}   |   SKT: ${DateFormat('dd/MM/yyyy').format(sktHam)}',
+                          style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                        ),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.remove_circle_outline,
+                              color: Colors.orange,
+                              size: 28,
+                            ),
+                            tooltip: '1 Adet İmha Et',
+                            onPressed: () => _tekliImhaEt(p.id, p['isim'], p['adet']),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.delete_forever,
+                              color: Colors.red,
+                              size: 30,
+                            ),
+                            tooltip: 'Tümünü İmha Et',
+                            onPressed: () => _imhaEt(p.id, p['isim'], p['adet']),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
         );
       },
     );
