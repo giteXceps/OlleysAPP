@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'firebase_options.dart';
+import 'tema/app_theme.dart';
 import 'ekranlar/giris_ekrani.dart';
 import 'ekranlar/birim_secim_ekrani.dart';
 import 'ekranlar/coffee_go_ana_ekrani.dart';
@@ -10,6 +12,7 @@ import 'ekranlar/root_yonetim_ekrani.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await initializeDateFormatting('tr_TR', null);
 
   final prefs = await SharedPreferences.getInstance();
   final String? aktifKullanici = prefs.getString('aktifKullanici');
@@ -42,10 +45,7 @@ class OlleysApp extends StatelessWidget {
     return MaterialApp(
       title: 'Olleys Yönetim',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.brown),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.lightTheme,
       home: baslangicEkrani,
     );
   }

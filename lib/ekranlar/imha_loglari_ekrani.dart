@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../tema/app_theme.dart';
 
 class ImhaLoglariEkrani extends StatelessWidget {
   const ImhaLoglariEkrani({super.key});
@@ -8,20 +9,16 @@ class ImhaLoglariEkrani extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.brown[50],
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('İmha Kayıtları'),
-        backgroundColor: Colors.red[800],
+        title: const Text('İmha & Zayiat Logları'),
+        backgroundColor: const Color(0xFFB91C1C),
         foregroundColor: Colors.white,
       ),
-      // StreamBuilder ile Firestore'daki 'imha_loglari' tablosunu dinliyoruz
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('imha_loglari')
-            .orderBy(
-              'tarih',
-              descending: true,
-            ) // En yeni işlem en üstte görünsün
+            .orderBy('tarih', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -29,60 +26,107 @@ class ImhaLoglariEkrani extends StatelessWidget {
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Text(
-                'Henüz bir imha kaydı bulunmuyor.',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.history_toggle_off_rounded, size: 48, color: Colors.grey.shade400),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Henüz kayıtlı bir imha işlemi bulunmuyor.',
+                      style: TextStyle(color: AppTheme.textMuted, fontSize: 15),
+                    ),
+                  ],
+                ),
               ),
             );
           }
 
           var loglar = snapshot.data!.docs;
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: loglar.length,
-            itemBuilder: (context, index) {
-              var log = loglar[index];
-              // Firestore zaman damgasını normal tarihe çeviriyoruz
-              DateTime islemZamani = (log['tarih'] as Timestamp).toDate();
-              String formatliTarih = DateFormat(
-                'dd/MM/yyyy HH:mm',
-              ).format(islemZamani);
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                itemCount: loglar.length,
+                itemBuilder: (context, index) {
+                  var log = loglar[index];
+                  DateTime islemZamani = (log['tarih'] as Timestamp).toDate();
+                  String formatliTarih = DateFormat('dd/MM/yyyy HH:mm').format(islemZamani);
 
-              return Card(
-                elevation: 3,
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Colors.redAccent,
-                    child: Icon(Icons.delete_sweep, color: Colors.white),
-                  ),
-                  title: Text(
-                    log['urun'], // Ürün adı
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    'Kullanıcı: ${log['kullanici']} \nTarih: $formatliTarih',
-                  ),
-                  trailing: Container(
-                    padding: const EdgeInsets.all(8),
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.red[50],
-                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppTheme.borderColor),
+                      boxShadow: AppTheme.softShadow,
                     ),
-                    child: Text(
-                      '${log['adet']} Adet', // Kaç adet imha edildiği
-                      style: TextStyle(
-                        color: Colors.red[900],
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.delete_sweep_rounded,
+                            color: Color(0xFFDC2626),
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                log['urun'] ?? 'Bilinmeyen Ürün',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: AppTheme.textDark,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'Kullanıcı: ${log['kullanici']}  •  $formatliTarih',
+                                style: const TextStyle(
+                                  color: AppTheme.textMuted,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFFFECACA)),
+                          ),
+                          child: Text(
+                            '${log['adet']} Adet',
+                            style: const TextStyle(
+                              color: Color(0xFFB91C1C),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-              );
-            },
+                  );
+                },
+              ),
+            ),
           );
         },
       ),

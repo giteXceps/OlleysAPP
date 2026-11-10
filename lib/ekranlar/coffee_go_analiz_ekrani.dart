@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../tema/app_theme.dart';
 
 class CoffeeGoAnalizEkrani extends StatefulWidget {
   const CoffeeGoAnalizEkrani({super.key});
@@ -10,8 +11,8 @@ class CoffeeGoAnalizEkrani extends StatefulWidget {
 }
 
 class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
-  // Varsayılan olarak son 7 gün (Bugün dahil)
   late DateTimeRange _secilenAralik;
+  int _seciliFiltreGun = 7; // Aktif seçilen butonun takibi için
 
   @override
   void initState() {
@@ -23,7 +24,6 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
     );
   }
 
-  // Tarih aralığını günün başlangıcı (00:00:00) ve bitişi (23:59:59) olarak normalleştirir
   DateTime get _baslangicTarihi {
     final s = _secilenAralik.start;
     return DateTime(s.year, s.month, s.day, 0, 0, 0);
@@ -34,11 +34,11 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
     return DateTime(e.year, e.month, e.day, 23, 59, 59, 999);
   }
 
-  // Hazır Gün Filtreleri (0: Bugün, 7, 30, 90)
   void _hazirFiltreSet(int gun) {
     final now = DateTime.now();
     final bugun = DateTime(now.year, now.month, now.day);
     setState(() {
+      _seciliFiltreGun = gun;
       if (gun == 0) {
         _secilenAralik = DateTimeRange(start: bugun, end: bugun);
       } else {
@@ -50,7 +50,6 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
     });
   }
 
-  // Takvimden Özel Aralık Seçme
   Future<void> _ozelAralikSec() async {
     final DateTimeRange? pick = await showDateRangePicker(
       context: context,
@@ -61,9 +60,9 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Colors.brown,
+              primary: Color(0xFF4338CA),
               onPrimary: Colors.white,
-              onSurface: Colors.black,
+              onSurface: AppTheme.textDark,
             ),
           ),
           child: child!,
@@ -71,7 +70,10 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
       },
     );
     if (pick != null) {
-      setState(() => _secilenAralik = pick);
+      setState(() {
+        _seciliFiltreGun = -1; // Özel aralık seçildi
+        _secilenAralik = pick;
+      });
     }
   }
 
@@ -85,56 +87,88 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
     final end = _bitisTarihi;
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Coffee Go | Satış & Fire Analizi'),
-        backgroundColor: Colors.brown[800],
+        title: const Text('Satış & Fire Analiz Masası'),
+        backgroundColor: const Color(0xFF1E1B4B),
         foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
-          // ---------------------------------------------------------
-          // ÜST KISIM: FİLTRELEME ÇUBUĞU
-          // ---------------------------------------------------------
+          // ── ÜST FİLTRELEME ALANI ─────────────────────────────
           Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(bottom: BorderSide(color: AppTheme.borderColor)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today, size: 18, color: Colors.blueGrey),
-                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF2FF),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.calendar_month_rounded,
+                        size: 16,
+                        color: Color(0xFF4338CA),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Text(
-                      "Seçili Dönem: ${_tarihFormatla(_secilenAralik.start)} - ${_tarihFormatla(_secilenAralik.end)}",
+                      "Rapor Dönemi: ${_tarihFormatla(_secilenAralik.start)} - ${_tarihFormatla(_secilenAralik.end)}",
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blueGrey,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textDark,
                         fontSize: 14,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      _filtreButonu("Bugün", () => _hazirFiltreSet(0)),
+                      _filtreChip("Bugün", 0),
                       const SizedBox(width: 8),
-                      _filtreButonu("Son 7 Gün", () => _hazirFiltreSet(7)),
+                      _filtreChip("Son 7 Gün", 7),
                       const SizedBox(width: 8),
-                      _filtreButonu("Son 30 Gün", () => _hazirFiltreSet(30)),
+                      _filtreChip("Son 30 Gün", 30),
                       const SizedBox(width: 8),
-                      _filtreButonu("Son 90 Gün", () => _hazirFiltreSet(90)),
+                      _filtreChip("Son 90 Gün", 90),
                       const SizedBox(width: 8),
                       OutlinedButton.icon(
                         onPressed: _ozelAralikSec,
-                        icon: const Icon(Icons.date_range, size: 18),
-                        label: const Text("Takvimden Seç"),
+                        icon: const Icon(Icons.date_range_rounded, size: 16),
+                        label: Text(
+                          _seciliFiltreGun == -1 ? "Özel Tarih Seçildi" : "Takvimden Seç",
+                        ),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.brown[900],
+                          foregroundColor: const Color(0xFF4338CA),
+                          side: BorderSide(
+                            color: _seciliFiltreGun == -1
+                                ? const Color(0xFF4338CA)
+                                : AppTheme.borderColor,
+                            width: _seciliFiltreGun == -1 ? 2 : 1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         ),
                       ),
                     ],
@@ -144,9 +178,7 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
             ),
           ),
 
-          // ---------------------------------------------------------
-          // ALT KISIM: GERÇEK ZAMANLI SATIŞ VE İMHA VERİLERİ
-          // ---------------------------------------------------------
+          // ── ANALİZ VERİLERİ (STREAM) ──────────────────────────
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -180,7 +212,7 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
                       );
                     }
 
-                    // --- 1. SATIŞLARI HESAPLA ---
+                    // 1. SATIŞLARI HESAPLA
                     int toplamSatilan = 0;
                     final Map<String, int> urunSatislari = {};
 
@@ -197,7 +229,7 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
                       });
                     }
 
-                    // --- 2. İMHALARI (FİRELERİ) HESAPLA ---
+                    // 2. İMHALARI (FİRELERİ) HESAPLA
                     int toplamImha = 0;
                     final Map<String, int> urunFireleri = {};
 
@@ -211,7 +243,7 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
                       urunFireleri[urun] = (urunFireleri[urun] ?? 0) + adet;
                     }
 
-                    // --- 3. TÜM ÜRÜNLERİ BİRLEŞTİR ---
+                    // 3. ÜRÜNLERİ BİRLEŞTİR
                     final Set<String> tumUrunlerSet = {
                       ...urunSatislari.keys,
                       ...urunFireleri.keys,
@@ -219,18 +251,39 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
                     final List<String> siraliUrunler = tumUrunlerSet.toList()..sort();
 
                     if (siraliUrunler.isEmpty) {
-                      return const Center(
+                      return Center(
                         child: Padding(
-                          padding: EdgeInsets.all(24.0),
+                          padding: const EdgeInsets.all(32.0),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.inventory_2_outlined, size: 54, color: Colors.grey),
-                              SizedBox(height: 12),
-                              Text(
-                                "Seçili tarih aralığında hiçbir satış veya imha kaydı bulunamadı.",
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: AppTheme.softShadow,
+                                ),
+                                child: const Icon(
+                                  Icons.query_stats_rounded,
+                                  size: 48,
+                                  color: AppTheme.textMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                "Seçili Dönemde Veri Yok",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.textDark,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              const Text(
+                                "Bu tarih aralığı için henüz satış veya fire kaydı bulunmuyor.",
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey, fontSize: 16),
+                                style: TextStyle(color: AppTheme.textMuted, fontSize: 14),
                               ),
                             ],
                           ),
@@ -247,232 +300,261 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
                         : (toplamImha / toplamHaraket) * 100;
 
                     return SingleChildScrollView(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "Dönem Özeti & Performans",
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // ÖZET KARTLAR (Satış & Fire)
-                          Row(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1100),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _analizKarti(
-                                "Toplam Satış",
-                                "$toplamSatilan Adet",
-                                Icons.shopping_bag,
-                                Colors.green,
-                              ),
-                              const SizedBox(width: 12),
-                              _analizKarti(
-                                "Toplam Fire (İmha)",
-                                "$toplamImha Adet",
-                                Icons.delete_forever,
-                                Colors.red,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-
-                          // VERİMLİLİK VE FİRE ORANI KARTLARI
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _genisAnalizKarti(
-                                  "Satış Verimliliği",
-                                  "%${verimlilik.toStringAsFixed(1)}",
-                                  Icons.trending_up,
-                                  Colors.teal,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _genisAnalizKarti(
-                                  "Fire Oranı",
-                                  "%${fireOrani.toStringAsFixed(1)}",
-                                  Icons.trending_down,
-                                  Colors.deepOrange,
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          // ==========================================
-                          // GRAFİK BÖLÜMÜ
-                          // ==========================================
-                          const SizedBox(height: 28),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                "Grafiksel Analiz (Satış vs Fire)",
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              // ── KPI METRİK KARTLARI ──────────────────
                               Row(
                                 children: [
-                                  _lejantKutusu(Colors.green, "Satış"),
-                                  const SizedBox(width: 12),
-                                  _lejantKutusu(Colors.red, "Fire"),
+                                  _metrikKarti(
+                                    baslik: "Toplam Satış",
+                                    deger: "$toplamSatilan Adet",
+                                    altMetin: "Kasiyer tarafından satıldı",
+                                    ikon: Icons.shopping_bag_rounded,
+                                    renk: const Color(0xFF059669),
+                                    bgRenk: const Color(0xFFECFDF5),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  _metrikKarti(
+                                    baslik: "Toplam Fire (İmha)",
+                                    deger: "$toplamImha Adet",
+                                    altMetin: "Zayiat / SKT nedeniyle imha",
+                                    ikon: Icons.delete_sweep_rounded,
+                                    renk: const Color(0xFFDC2626),
+                                    bgRenk: const Color(0xFFFEF2F2),
+                                  ),
                                 ],
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Container(
-                            height: 260,
-                            padding: const EdgeInsets.only(top: 20, right: 16, bottom: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 10,
+                              const SizedBox(height: 14),
+
+                              Row(
+                                children: [
+                                  _metrikKarti(
+                                    baslik: "Satış Verimliliği",
+                                    deger: "%${verimlilik.toStringAsFixed(1)}",
+                                    altMetin: "Toplam stoğun başarı oranı",
+                                    ikon: Icons.trending_up_rounded,
+                                    renk: const Color(0xFF0F766E),
+                                    bgRenk: const Color(0xFFCCFBF1),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  _metrikKarti(
+                                    baslik: "Fire / Zayiat Oranı",
+                                    deger: "%${fireOrani.toStringAsFixed(1)}",
+                                    altMetin: "İmha edilen ürün yüzdesi",
+                                    ikon: Icons.trending_down_rounded,
+                                    renk: const Color(0xFFEA580C),
+                                    bgRenk: const Color(0xFFFFF7ED),
+                                  ),
+                                ],
+                              ),
+
+                              // ── GRAFİK BÖLÜMÜ ─────────────────────────
+                              const SizedBox(height: 28),
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: AppTheme.borderColor),
+                                  boxShadow: AppTheme.softShadow,
                                 ),
-                              ],
-                            ),
-                            child: _urunlerBarGrafigi(siraliUrunler, urunSatislari, urunFireleri),
-                          ),
-
-                          // ==========================================
-                          // ÜRÜN BAZLI DETAYLAR LİSTESİ
-                          // ==========================================
-                          const SizedBox(height: 28),
-                          Text(
-                            "Ürün Bazlı Detaylar (${siraliUrunler.length} Ürün)",
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Divider(),
-
-                          ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: siraliUrunler.length,
-                            itemBuilder: (context, index) {
-                              final urun = siraliUrunler[index];
-                              final s = urunSatislari[urun] ?? 0;
-                              final f = urunFireleri[urun] ?? 0;
-                              final toplam = s + f;
-                              final double basariOrani = toplam == 0 ? 0 : (s / toplam);
-                              final double yuzde = basariOrani * 100;
-
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(14.0),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          CircleAvatar(
-                                            backgroundColor: Colors.brown[100],
-                                            child: const Icon(
-                                              Icons.cake,
-                                              color: Colors.brown,
-                                            ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text(
+                                          "Ürün Bazlı Dağılım",
+                                          style: TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppTheme.textDark,
                                           ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Text(
-                                              urun,
+                                        ),
+                                        Row(
+                                          children: [
+                                            _lejantKutusu(const Color(0xFF059669), "Satış"),
+                                            const SizedBox(width: 14),
+                                            _lejantKutusu(const Color(0xFFDC2626), "Fire"),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 20),
+                                    SizedBox(
+                                      height: 250,
+                                      child: _urunlerBarGrafigi(
+                                        siraliUrunler,
+                                        urunSatislari,
+                                        urunFireleri,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // ── ÜRÜN BAZLI DETAY LİSTESİ ─────────────
+                              const SizedBox(height: 28),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    "Ürün Performansı (${siraliUrunler.length} Ürün)",
+                                    style: const TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.textDark,
+                                    ),
+                                  ),
+                                  Text(
+                                    "Satış & Fire Kırılımı",
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey.shade500,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+
+                              ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: siraliUrunler.length,
+                                itemBuilder: (context, index) {
+                                  final urun = siraliUrunler[index];
+                                  final s = urunSatislari[urun] ?? 0;
+                                  final f = urunFireleri[urun] ?? 0;
+                                  final toplam = s + f;
+                                  final double basariOrani = toplam == 0 ? 0 : (s / toplam);
+                                  final double yuzde = basariOrani * 100;
+
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: AppTheme.borderColor),
+                                      boxShadow: AppTheme.softShadow,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Container(
+                                              width: 44,
+                                              height: 44,
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF1F5F9),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: const Icon(
+                                                Icons.cake_rounded,
+                                                color: Color(0xFF4338CA),
+                                                size: 24,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 14),
+                                            Expanded(
+                                              child: Text(
+                                                urun,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 15,
+                                                  color: AppTheme.textDark,
+                                                ),
+                                              ),
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 10,
+                                                vertical: 4,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: yuzde >= 70
+                                                    ? const Color(0xFFECFDF5)
+                                                    : const Color(0xFFFFF7ED),
+                                                borderRadius: BorderRadius.circular(20),
+                                                border: Border.all(
+                                                  color: yuzde >= 70
+                                                      ? const Color(0xFFA7F3D0)
+                                                      : const Color(0xFFFED7AA),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                "%${yuzde.toStringAsFixed(0)} Verim",
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: yuzde >= 70
+                                                      ? const Color(0xFF047857)
+                                                      : const Color(0xFFC2410C),
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              "Satış: $s adet",
                                               style: const TextStyle(
+                                                color: Color(0xFF059669),
                                                 fontWeight: FontWeight.bold,
-                                                fontSize: 16,
-                                              ),
-                                            ),
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: yuzde >= 70
-                                                  ? Colors.green.shade50
-                                                  : Colors.orange.shade50,
-                                              borderRadius: BorderRadius.circular(12),
-                                              border: Border.all(
-                                                color: yuzde >= 70
-                                                    ? Colors.green.shade300
-                                                    : Colors.orange.shade300,
-                                              ),
-                                            ),
-                                            child: Text(
-                                              "%${yuzde.toStringAsFixed(0)} Verim",
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: yuzde >= 70
-                                                    ? Colors.green.shade800
-                                                    : Colors.orange.shade800,
                                                 fontSize: 13,
                                               ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            "Satış: $s adet",
-                                            style: const TextStyle(
-                                              color: Colors.green,
-                                              fontWeight: FontWeight.w600,
+                                            Text(
+                                              "Fire: $f adet",
+                                              style: const TextStyle(
+                                                color: Color(0xFFDC2626),
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                              ),
                                             ),
-                                          ),
-                                          Text(
-                                            "Fire: $f adet",
-                                            style: const TextStyle(
-                                              color: Colors.red,
-                                              fontWeight: FontWeight.w600,
+                                            Text(
+                                              "Toplam: $toplam adet",
+                                              style: const TextStyle(
+                                                color: AppTheme.textMuted,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13,
+                                              ),
                                             ),
-                                          ),
-                                          Text(
-                                            "Toplam: $toplam adet",
-                                            style: const TextStyle(
-                                              color: Colors.grey,
-                                              fontWeight: FontWeight.w500,
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(10),
+                                          child: LinearProgressIndicator(
+                                            value: basariOrani,
+                                            minHeight: 8,
+                                            backgroundColor: const Color(0xFFFEE2E2),
+                                            valueColor: AlwaysStoppedAnimation<Color>(
+                                              yuzde >= 70
+                                                  ? const Color(0xFF059669)
+                                                  : const Color(0xFFEA580C),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: LinearProgressIndicator(
-                                          value: basariOrani,
-                                          minHeight: 8,
-                                          backgroundColor: Colors.red.shade100,
-                                          valueColor: AlwaysStoppedAnimation<Color>(
-                                            yuzde >= 70 ? Colors.green : Colors.orange,
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     );
                   },
@@ -485,16 +567,108 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
     );
   }
 
-  Widget _filtreButonu(String baslik, VoidCallback onTap) {
-    return ElevatedButton(
-      onPressed: onTap,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.brown[100],
-        foregroundColor: Colors.brown[900],
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+  Widget _filtreChip(String baslik, int gun) {
+    final bool secili = _seciliFiltreGun == gun;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => _hazirFiltreSet(gun),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: secili ? const Color(0xFF4338CA) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: secili ? const Color(0xFF4338CA) : AppTheme.borderColor,
+            width: secili ? 1.5 : 1,
+          ),
+          boxShadow: secili
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF4338CA).withOpacity(0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          baslik,
+          style: TextStyle(
+            color: secili ? Colors.white : AppTheme.textDark,
+            fontWeight: secili ? FontWeight.bold : FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
       ),
-      child: Text(baslik),
+    );
+  }
+
+  Widget _metrikKarti({
+    required String baslik,
+    required String deger,
+    required String altMetin,
+    required IconData ikon,
+    required Color renk,
+    required Color bgRenk,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.borderColor),
+          boxShadow: AppTheme.softShadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  baslik,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: bgRenk,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(ikon, color: renk, size: 20),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              deger,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: renk,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              altMetin,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey.shade500,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -502,15 +676,22 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
     return Row(
       children: [
         Container(
-          width: 12,
-          height: 12,
+          width: 10,
+          height: 10,
           decoration: BoxDecoration(
             color: renk,
             borderRadius: BorderRadius.circular(3),
           ),
         ),
-        const SizedBox(width: 4),
-        Text(metin, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(width: 6),
+        Text(
+          metin,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textMuted,
+          ),
+        ),
       ],
     );
   }
@@ -530,8 +711,8 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
     maxY = (maxY * 1.25).ceilToDouble();
     if (maxY <= 0) maxY = 5;
 
-    // Ürün sayısı fazlaysa yatay kaydırılabilir yap
-    final double grafikGenisligi = urunler.length > 5 ? urunler.length * 60.0 : double.infinity;
+    final double grafikGenisligi =
+        urunler.length > 5 ? urunler.length * 68.0 : double.infinity;
 
     Widget barChartWidget = BarChart(
       BarChartData(
@@ -540,13 +721,17 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
         barTouchData: BarTouchData(
           enabled: true,
           touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (group) => Colors.blueGrey.shade800,
+            getTooltipColor: (group) => const Color(0xFF1E1B4B),
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               final urun = urunler[group.x.toInt()];
               final tip = rodIndex == 0 ? "Satış" : "Fire";
               return BarTooltipItem(
                 "$urun\n$tip: ${rod.toY.toInt()} adet",
-                const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
               );
             },
           ),
@@ -561,15 +746,15 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
             barRods: [
               BarChartRodData(
                 toY: satis,
-                color: Colors.green,
-                width: 10,
-                borderRadius: BorderRadius.circular(3),
+                color: const Color(0xFF059669),
+                width: 12,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
               ),
               BarChartRodData(
                 toY: fire,
-                color: Colors.red,
-                width: 10,
-                borderRadius: BorderRadius.circular(3),
+                color: const Color(0xFFDC2626),
+                width: 12,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
               ),
             ],
           );
@@ -589,7 +774,11 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
                     padding: const EdgeInsets.only(top: 8.0),
                     child: Text(
                       shortName,
-                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppTheme.textMuted,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   );
                 }
@@ -605,7 +794,7 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
               getTitlesWidget: (value, meta) {
                 return Text(
                   value.toInt().toString(),
-                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                  style: const TextStyle(fontSize: 10, color: AppTheme.textMuted),
                 );
               },
             ),
@@ -618,7 +807,7 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
           drawVerticalLine: false,
           horizontalInterval: maxY > 10 ? (maxY / 4).ceilToDouble() : 2,
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.grey.shade200,
+            color: const Color(0xFFE2E8F0),
             strokeWidth: 1,
           ),
         ),
@@ -637,76 +826,5 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
     }
 
     return barChartWidget;
-  }
-
-  Widget _analizKarti(String baslik, String deger, IconData icon, Color renk) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: renk, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              baslik,
-              style: TextStyle(color: Colors.grey[600], fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              deger,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: renk),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _genisAnalizKarti(String baslik, String deger, IconData icon, Color renk) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: renk.withOpacity(0.1),
-            child: Icon(icon, color: renk, size: 20),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(baslik, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                Text(
-                  deger,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: renk,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

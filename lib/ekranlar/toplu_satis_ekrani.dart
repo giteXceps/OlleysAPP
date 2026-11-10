@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../tema/app_theme.dart';
 
 class TopluSatisEkrani extends StatefulWidget {
   const TopluSatisEkrani({super.key});
@@ -13,8 +14,6 @@ class TopluSatisEkrani extends StatefulWidget {
 class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
   final Map<String, TextEditingController> _adetControllers = {};
   bool _islemYapiliyor = false;
-
-  // Tarih seçimi — varsayılan bugün
   DateTime _secilenTarih = DateTime.now();
 
   @override
@@ -26,20 +25,17 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
     super.dispose();
   }
 
-  // ----------------------------------------------------------------
-  // TARİH SEÇİCİ
-  // ----------------------------------------------------------------
   Future<void> _tarihSec() async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _secilenTarih,
       firstDate: DateTime(2024),
-      lastDate: DateTime.now(), // Gelecek tarih seçilemesin
+      lastDate: DateTime.now(),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Colors.blueGrey,
+              primary: AppTheme.posPrimary,
               onPrimary: Colors.white,
             ),
           ),
@@ -52,7 +48,6 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
     }
   }
 
-  // Seçilen tarihin bugün olup olmadığını kontrol et
   bool get _bugun {
     final now = DateTime.now();
     return _secilenTarih.year == now.year &&
@@ -60,9 +55,6 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
         _secilenTarih.day == now.day;
   }
 
-  // ----------------------------------------------------------------
-  // RAFTA OLAN ÜRÜNLERİ GRUPLA
-  // ----------------------------------------------------------------
   Map<String, int> _urunleriGrupla(List<QueryDocumentSnapshot> docs) {
     Map<String, int> gruplar = {};
     for (var doc in docs) {
@@ -75,9 +67,6 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
     );
   }
 
-  // ----------------------------------------------------------------
-  // ANA İŞLEM: TOPLU STOKTAN DÜŞ
-  // ----------------------------------------------------------------
   Future<void> _topluStokDus(Map<String, int> raftakiUrunler) async {
     Map<String, int> satislar = {};
     _adetControllers.forEach((urunIsmi, controller) {
@@ -90,19 +79,17 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
     if (satislar.isEmpty) {
       _mesajGoster(
         'Lütfen en az bir ürün için satış adedi girin.',
-        Colors.orange,
+        Colors.orange.shade800,
       );
       return;
     }
 
-    // Raftakinden fazla girilmişse uyar
     for (var entry in satislar.entries) {
       int rafta = raftakiUrunler[entry.key] ?? 0;
       if (entry.value > rafta) {
         _mesajGoster(
-          '⚠️ ${entry.key}: girilen adet (${entry.value}), '
-          'raftaki miktardan ($rafta) fazla!',
-          Colors.red,
+          '⚠️ ${entry.key}: girilen adet (${entry.value}), raftaki miktardan ($rafta) fazla!',
+          Colors.red.shade800,
         );
         return;
       }
@@ -139,7 +126,6 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
             .where('durum', isEqualTo: 'Rafta')
             .get();
 
-        // Dart tarafında SKT'ye göre sırala (en yakın önce)
         var docs = snapshot.docs.toList()
           ..sort((a, b) {
             DateTime sktA = (a['sktZamani'] as Timestamp).toDate();
@@ -173,7 +159,6 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
         }
       }
 
-      // Satış logunu da aynı atomik batch içine ekliyoruz
       final prefs = await SharedPreferences.getInstance();
       String kullanici =
           prefs.getString('aktifKullanici') ?? 'Bilinmeyen Kullanıcı';
@@ -189,20 +174,23 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
         'tarih': islemTarihi,
       });
 
-      // Hepsini tek seferde atomik olarak yaz!
       await batch.commit();
 
       if (mounted) {
         _adetControllers.forEach((_, c) => c.clear());
-        // Tarih seçimini bugüne sıfırla
         setState(() => _secilenTarih = DateTime.now());
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              '✅ Gün sonu satışları işlendi! $toplamGuncellenen kayıt güncellendi.',
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('Gün sonu satışları işlendi ($toplamAdet ürün satıldı).'),
+              ],
             ),
-            backgroundColor: Colors.green[700],
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 4),
           ),
         );
@@ -214,9 +202,6 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
     }
   }
 
-  // ----------------------------------------------------------------
-  // ONAY DİYALOĞU
-  // ----------------------------------------------------------------
   Future<bool?> _onayDiyalogu(Map<String, int> satislar) {
     String tarihMetni = _bugun
         ? 'Bugün (${DateFormat('dd/MM/yyyy').format(_secilenTarih)})'
@@ -227,9 +212,9 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
       builder: (context) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.receipt_long, color: Colors.blueGrey),
+            Icon(Icons.point_of_sale_rounded, color: AppTheme.posPrimary),
             SizedBox(width: 10),
-            Text('Gün Sonu Satış Özeti'),
+            Text('Satış Onayı & Stok Düşümü'),
           ],
         ),
         content: SingleChildScrollView(
@@ -237,29 +222,22 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Tarih bilgisi
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.blueGrey[50],
+                  color: AppTheme.posBg,
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppTheme.posAccent.withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.calendar_today,
-                      size: 16,
-                      color: Colors.blueGrey[700],
-                    ),
+                    const Icon(Icons.calendar_today_rounded, size: 16, color: AppTheme.posPrimary),
                     const SizedBox(width: 8),
                     Text(
-                      'Tarih: $tarihMetni',
-                      style: TextStyle(
-                        color: Colors.blueGrey[800],
-                        fontWeight: FontWeight.w600,
+                      'İşlem Tarihi: $tarihMetni',
+                      style: const TextStyle(
+                        color: AppTheme.posPrimary,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
@@ -267,9 +245,8 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Aşağıdaki satışlar stoktan düşülecek.\n'
-                'SKT\'si en yakın ürünler öncelikli işlenecek.',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
+                'Aşağıdaki adetler raftaki ürünlerden otomatik olarak düşülecek (SKT\'si en yakın olanlara öncelik verilir).',
+                style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
               ),
               const SizedBox(height: 16),
               const Divider(),
@@ -282,22 +259,19 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
                       Expanded(
                         child: Text(
                           e.key,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.blueGrey[50],
+                          color: const Color(0xFFF1F5F9),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           '${e.value} adet',
-                          style: TextStyle(
-                            color: Colors.blueGrey[800],
+                          style: const TextStyle(
+                            color: AppTheme.textDark,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -307,13 +281,20 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
                 ),
               ),
               const Divider(),
-              const SizedBox(height: 4),
-              Text(
-                'Toplam: ${satislar.values.fold(0, (a, b) => a + b)} adet',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Toplam Satılan:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    '${satislar.values.fold(0, (a, b) => a + b)} adet',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      color: AppTheme.posPrimary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -325,11 +306,10 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
           ),
           ElevatedButton.icon(
             onPressed: () => Navigator.pop(context, true),
-            icon: const Icon(Icons.check),
-            label: const Text('ONAYLA & DÜŞÜR'),
+            icon: const Icon(Icons.check_rounded, color: Colors.white),
+            label: const Text('ONAYLA & DÜŞÜR', style: TextStyle(color: Colors.white)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blueGrey[800],
-              foregroundColor: Colors.white,
+              backgroundColor: AppTheme.posPrimary,
             ),
           ),
         ],
@@ -338,18 +318,18 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
   }
 
   void _mesajGoster(String mesaj, Color renk) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(mesaj), backgroundColor: renk));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(mesaj), backgroundColor: renk, behavior: SnackBarBehavior.floating),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Gün Sonu Satış Girişi'),
-        backgroundColor: Colors.blueGrey[800],
+        title: const Text('Gün Sonu Satış Masası'),
+        backgroundColor: AppTheme.posPrimary,
         foregroundColor: Colors.white,
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -363,17 +343,25 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Text(
-                'Şu an rafta hiç ürün yok.',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.inventory_2_outlined, size: 54, color: Colors.grey.shade400),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Şu an rafta satışa hazır ürün bulunmuyor.',
+                      style: TextStyle(color: AppTheme.textMuted, fontSize: 16),
+                    ),
+                  ],
+                ),
               ),
             );
           }
 
-          Map<String, int> raftakiUrunler = _urunleriGrupla(
-            snapshot.data!.docs,
-          );
+          Map<String, int> raftakiUrunler = _urunleriGrupla(snapshot.data!.docs);
 
           for (var isim in raftakiUrunler.keys) {
             _adetControllers.putIfAbsent(isim, () => TextEditingController());
@@ -383,181 +371,172 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
 
           return Column(
             children: [
-              // ── ÜST BİLGİ + TARİH SEÇİCİ ──────────────────────
+              // ── ÜST BİLGİ & TARİH SEÇİCİ KARTI ───────────────
               Container(
                 width: double.infinity,
-                color: Colors.blueGrey[700],
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 14,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border(bottom: BorderSide(color: AppTheme.borderColor)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Gün sonu raporuna bakarak satılan miktarları girin.\n'
-                      'SKT\'si en yakın ürünler önce stoktan düşülür.',
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                      'Kasiyer / Z raporundan ürün bazlı satılan adetleri girin. Kayıt anında en yakın SKT\'li ürünlerden düşülür.',
+                      style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
                     ),
-                    const SizedBox(height: 10),
-                    // Tarih seçim butonu
-                    GestureDetector(
+                    const SizedBox(height: 12),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(12),
                       onTap: _tarihSec,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
+                          color: _bugun ? AppTheme.posBg : const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.4),
+                            color: _bugun
+                                ? AppTheme.posAccent.withOpacity(0.4)
+                                : Colors.orange.shade300,
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
-                              Icons.calendar_today,
-                              color: Colors.white,
-                              size: 18,
+                            Icon(
+                              Icons.calendar_today_rounded,
+                              size: 16,
+                              color: _bugun ? AppTheme.posPrimary : Colors.orange.shade800,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               _bugun
                                   ? 'Bugün — ${DateFormat('dd/MM/yyyy').format(_secilenTarih)}'
-                                  : '${DateFormat('dd/MM/yyyy').format(_secilenTarih)} ← Geçmiş tarih',
+                                  : 'Geçmiş Gün: ${DateFormat('dd/MM/yyyy').format(_secilenTarih)}',
                               style: TextStyle(
-                                color: _bugun
-                                    ? Colors.white
-                                    : Colors.orange[200],
+                                color: _bugun ? AppTheme.posPrimary : Colors.orange.shade900,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                                fontSize: 13,
                               ),
                             ),
                             const SizedBox(width: 8),
                             Icon(
-                              Icons.edit_calendar,
-                              color: Colors.white.withOpacity(0.7),
+                              Icons.edit_calendar_rounded,
                               size: 16,
+                              color: _bugun ? AppTheme.posPrimary : Colors.orange.shade800,
                             ),
                           ],
                         ),
                       ),
                     ),
-                    // Geçmiş tarih seçilmişse uyarı göster
-                    if (!_bugun) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.info_outline,
-                            color: Colors.orange[200],
-                            size: 14,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Geçmiş gün için satış girişi yapılıyor',
-                            style: TextStyle(
-                              color: Colors.orange[200],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
                   ],
                 ),
               ),
 
-              // ── ÜRÜN LİSTESİ ───────────────────────────────────
+              // ── ÜRÜN GİRİŞ LİSTESİ ───────────────────────────
               Expanded(
                 child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
                   itemCount: urunListesi.length,
                   itemBuilder: (context, index) {
                     String isim = urunListesi[index];
                     int raftakiAdet = raftakiUrunler[isim]!;
 
-                    return Card(
-                      elevation: 2,
-                      margin: const EdgeInsets.only(bottom: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.borderColor),
+                        boxShadow: AppTheme.softShadow,
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: Colors.blueGrey[50],
-                              child: const Icon(
-                                Icons.cake_outlined,
-                                color: Colors.blueGrey,
-                              ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: AppTheme.posBg,
+                              borderRadius: BorderRadius.circular(14),
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    isim,
+                            child: const Icon(
+                              Icons.cake_rounded,
+                              color: AppTheme.posPrimary,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isim,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: AppTheme.textDark,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    'Rafta Mevcut: $raftakiAdet Adet',
                                     style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Rafta: $raftakiAdet adet',
-                                    style: TextStyle(
-                                      color: Colors.grey[500],
+                                      color: AppTheme.textMuted,
                                       fontSize: 12,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(
-                              width: 90,
-                              child: TextField(
-                                controller: _adetControllers[isim],
-                                keyboardType: TextInputType.number,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
                                 ),
-                                decoration: InputDecoration(
-                                  hintText: '0',
-                                  hintStyle: TextStyle(color: Colors.grey[300]),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(
-                                      color: Colors.blueGrey,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  suffixText: 'ad.',
-                                  suffixStyle: TextStyle(
-                                    color: Colors.grey[400],
-                                    fontSize: 12,
-                                  ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(
+                            width: 90,
+                            child: TextField(
+                              controller: _adetControllers[isim],
+                              keyboardType: TextInputType.number,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.posPrimary,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: '0',
+                                hintStyle: TextStyle(color: Colors.grey.shade400),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                                filled: true,
+                                fillColor: const Color(0xFFF8FAFC),
+                                suffixText: 'ad.',
+                                suffixStyle: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppTheme.borderColor),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppTheme.posPrimary, width: 2),
                                 ),
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     );
                   },
@@ -568,15 +547,16 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
         },
       ),
 
-      // ── ALT SABİT BUTON ──────────────────────────────────────────
+      // ── ALT SABİT BUTON ────────────────────────────────────
       bottomNavigationBar: Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
         decoration: BoxDecoration(
           color: Colors.white,
+          border: Border(top: BorderSide(color: AppTheme.borderColor)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 12,
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 16,
               offset: const Offset(0, -4),
             ),
           ],
@@ -587,38 +567,30 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
               .where('durum', isEqualTo: 'Rafta')
               .snapshots(),
           builder: (context, snapshot) {
-            Map<String, int> raftakiUrunler = snapshot.hasData
-                ? _urunleriGrupla(snapshot.data!.docs)
-                : {};
+            Map<String, int> raftakiUrunler =
+                snapshot.hasData ? _urunleriGrupla(snapshot.data!.docs) : {};
             return SizedBox(
-              height: 54,
+              height: 52,
               child: ElevatedButton.icon(
-                onPressed: _islemYapiliyor
-                    ? null
-                    : () => _topluStokDus(raftakiUrunler),
+                onPressed: _islemYapiliyor ? null : () => _topluStokDus(raftakiUrunler),
                 icon: _islemYapiliyor
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Icon(Icons.playlist_add_check),
+                    : const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
                 label: Text(
                   _islemYapiliyor ? 'İşleniyor...' : 'Satışları Stoktan Düşür',
                   style: const TextStyle(
-                    fontSize: 17,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueGrey[800],
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+                  backgroundColor: AppTheme.posPrimary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
               ),
             );
