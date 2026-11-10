@@ -86,7 +86,6 @@ class AppTheme {
         surface: cardLight,
         brightness: Brightness.light,
       ),
-      fontFamily: 'Segoe UI', // Temiz ve modern sans-serif
       appBarTheme: const AppBarTheme(
         elevation: 0,
         centerTitle: false,
@@ -97,14 +96,6 @@ class AppTheme {
           fontSize: 18,
           fontWeight: FontWeight.bold,
           letterSpacing: 0.2,
-        ),
-      ),
-      cardTheme: CardTheme(
-        color: cardLight,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: borderColor, width: 1),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -131,10 +122,6 @@ class AppTheme {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
-      ),
-      dialogTheme: DialogTheme(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        elevation: 8,
       ),
     );
   }
