@@ -540,6 +540,7 @@ class _CoffeeGoAnalizEkraniState extends State<CoffeeGoAnalizEkrani> {
         barTouchData: BarTouchData(
           enabled: true,
           touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (group) => Colors.blueGrey.shade800,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               final urun = urunler[group.x.toInt()];
               final tip = rodIndex == 0 ? "Satış" : "Fire";

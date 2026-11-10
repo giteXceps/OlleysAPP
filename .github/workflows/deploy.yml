@@ -1,4 +1,4 @@
-name: Deploy Web to Firebase & Build APK
+name: Build APK & Deploy Web
 
 on:
   push:
@@ -7,11 +7,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_and_deploy:
+  build_apk:
+    name: Android APK Derle
     runs-on: ubuntu-latest
 
     steps:
-      - name: Kodu Getir (Checkout)
+      - name: Kodu Getir
         uses: actions/checkout@v4
 
       - name: Java Kurulumu (JDK 17)
@@ -29,20 +30,6 @@ jobs:
       - name: Paketleri İndir
         run: flutter pub get
 
-      # --- WEB BUILD & DEPLOY ---
-      - name: Web Sürümünü Derle
-        run: flutter build web --release
-
-      - name: Firebase Hosting'e Yükle (Deploy)
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLEYSAPP }}'
-          channelId: live
-          projectId: olleysapp
-        continue-on-error: true
-
-      # --- ANDROID APK BUILD ---
       - name: Android APK Derle
         run: flutter build apk --release
 
@@ -52,3 +39,37 @@ jobs:
           name: OlleysAPP-Release-APK
           path: build/app/outputs/flutter-apk/app-release.apk
 
+  build_web:
+    name: Web Sürümü Derle & Dağıt
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodu Getir
+        uses: actions/checkout@v4
+
+      - name: Flutter Kurulumu
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Paketleri İndir
+        run: flutter pub get
+
+      - name: Web Sürümünü Derle
+        run: flutter build web --release
+
+      - name: Web Dosyalarını Kaydet (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: OlleysAPP-Web-Build
+          path: build/web
+
+      - name: Firebase Hosting'e Yükle
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLEYSAPP != '' }}
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLEYSAPP }}'
+          channelId: live
+          projectId: olleysapp
