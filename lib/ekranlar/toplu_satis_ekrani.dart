@@ -70,7 +70,7 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
   Future<void> _topluStokDus(Map<String, int> raftakiUrunler) async {
     Map<String, int> satislar = {};
     _adetControllers.forEach((urunIsmi, controller) {
-      int? adet = int.tryParse(controller.text);
+      int? adet = int.tryParse(controller.text.trim());
       if (adet != null && adet > 0) {
         satislar[urunIsmi] = adet;
       }
@@ -113,45 +113,59 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
               simdi.second,
             );
 
-      final batch = FirebaseFirestore.instance.batch();
+      // Raftaki tüm ürünleri tek seferde çekiyoruz
+      final pastalarSnap = await FirebaseFirestore.instance
+          .collection('pastalar')
+          .where('durum', isEqualTo: 'Rafta')
+          .get();
+
       int toplamGuncellenen = 0;
 
       for (var entry in satislar.entries) {
-        String urunIsmi = entry.key;
-        int satilacakAdet = entry.value;
+        final String urunIsmi = entry.key;
+        int kalanDusulecek = entry.value;
 
-        var snapshot = await FirebaseFirestore.instance
-            .collection('pastalar')
-            .where('isim', isEqualTo: urunIsmi)
-            .where('durum', isEqualTo: 'Rafta')
-            .get();
+        // İlgili ürün adına ait kayıtları bul
+        final urunDocs = pastalarSnap.docs.where((d) {
+          final data = d.data();
+          return data['isim'] == urunIsmi;
+        }).toList();
 
-        var docs = snapshot.docs.toList()
-          ..sort((a, b) {
-            DateTime sktA = (a['sktZamani'] as Timestamp).toDate();
-            DateTime sktB = (b['sktZamani'] as Timestamp).toDate();
-            return sktA.compareTo(sktB);
-          });
+        // SKT'si en yakın olanı en başa al
+        urunDocs.sort((a, b) {
+          final dataA = a.data();
+          final dataB = b.data();
+          DateTime sktA = DateTime.now();
+          DateTime sktB = DateTime.now();
+          if (dataA['sktZamani'] is Timestamp) {
+            sktA = (dataA['sktZamani'] as Timestamp).toDate();
+          }
+          if (dataB['sktZamani'] is Timestamp) {
+            sktB = (dataB['sktZamani'] as Timestamp).toDate();
+          }
+          return sktA.compareTo(sktB);
+        });
 
-        int kalanDusulecek = satilacakAdet;
-
-        for (var doc in docs) {
+        for (var doc in urunDocs) {
           if (kalanDusulecek <= 0) break;
 
-          int mevcutAdet = doc['adet'] ?? 0;
-          int mevcutSatilan = doc['satilanAdet'] ?? 0;
+          final data = doc.data();
+          final int mevcutAdet = (data['adet'] as num?)?.toInt() ?? 0;
+          final int mevcutSatilan = (data['satilanAdet'] as num?)?.toInt() ?? 0;
           if (mevcutAdet <= 0) continue;
 
-          int buDokmandanDus = kalanDusulecek > mevcutAdet
-              ? mevcutAdet
-              : kalanDusulecek;
+          final int buDokmandanDus =
+              kalanDusulecek > mevcutAdet ? mevcutAdet : kalanDusulecek;
+          final int yeniAdet = mevcutAdet - buDokmandanDus;
 
-          batch.update(doc.reference, {
-            'adet': mevcutAdet - buDokmandanDus,
+          // Güvenilir doğrudan doküman güncellemesi
+          await FirebaseFirestore.instance
+              .collection('pastalar')
+              .doc(doc.id)
+              .update({
+            'adet': yeniAdet,
             'satilanAdet': mevcutSatilan + buDokmandanDus,
-            'durum': (mevcutAdet - buDokmandanDus) == 0
-                ? 'Tükendi'
-                : 'Rafta',
+            'durum': yeniAdet == 0 ? 'Tükendi' : 'Rafta',
           });
 
           kalanDusulecek -= buDokmandanDus;
@@ -159,22 +173,18 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
         }
       }
 
+      // Satış logunu kaydet
       final prefs = await SharedPreferences.getInstance();
-      String kullanici =
+      final String kullanici =
           prefs.getString('aktifKullanici') ?? 'Bilinmeyen Kullanıcı';
-      int toplamAdet = satislar.values.fold(0, (a, b) => a + b);
+      final int toplamAdet = satislar.values.fold(0, (a, b) => a + b);
 
-      final logDocRef = FirebaseFirestore.instance
-          .collection('satis_loglari')
-          .doc();
-      batch.set(logDocRef, {
+      await FirebaseFirestore.instance.collection('satis_loglari').add({
         'kullanici': kullanici,
         'toplamAdet': toplamAdet,
         'detaylar': satislar,
         'tarih': islemTarihi,
       });
-
-      await batch.commit();
 
       if (mounted) {
         _adetControllers.forEach((_, c) => c.clear());
@@ -186,7 +196,7 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
-                Text('Gün sonu satışları işlendi ($toplamAdet ürün satıldı).'),
+                Text('Satış işlendi! $toplamGuncellenen parti raftan düşüldü ($toplamAdet ürün).'),
               ],
             ),
             backgroundColor: Colors.green.shade700,
