@@ -239,6 +239,7 @@ class _DolapSicaklikEkraniState extends State<DolapSicaklikEkrani> {
           ],
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
+              getTooltipColor: (touchedSpot) => Colors.blueGrey.shade900,
               getTooltipItems: (touchedSpots) {
                 return touchedSpots.map((spot) {
                   final isDolap1 = spotsDolap1.contains(spot);
