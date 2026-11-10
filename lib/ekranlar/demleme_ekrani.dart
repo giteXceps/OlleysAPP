@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -17,6 +18,22 @@ class _DemlemeEkraniState extends State<DemlemeEkrani> {
   bool _geriyeDonukMu = false;
   DateTime _secilenZaman = DateTime.now();
   bool _kaydediliyor = false;
+  Timer? _canliGuncellemeTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Ekran açıkken tazelik durumunun ve geçen dakikanın canlı akması için
+    _canliGuncellemeTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _canliGuncellemeTimer?.cancel();
+    super.dispose();
+  }
 
   // ----------------------------------------------------------------
   // EKRANA GÖRE SABİTLER

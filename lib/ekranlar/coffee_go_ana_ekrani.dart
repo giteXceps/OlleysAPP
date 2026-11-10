@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'pasta_takip_ekrani.dart';
 import 'demleme_ekrani.dart';
 import 'giris_ekrani.dart';
@@ -21,7 +22,11 @@ class CoffeeGoAnaEkrani extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.power_settings_new),
-            onPressed: () {
+            tooltip: 'Çıkış Yap',
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.clear();
+              if (!context.mounted) return;
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => const GirisEkrani()),

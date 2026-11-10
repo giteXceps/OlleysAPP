@@ -100,10 +100,10 @@ flutter_launcher_icons:
   image_path: "assets/icon/app_icon.png"
   min_sdk_android: 21
 
-  dependency_overrides:
+dependency_overrides:
   cloud_firestore: 5.6.9
 
-  msix_config:
+msix_config:
   display_name: Olleys
   publisher_display_name: OlleysApp
   identity_name: com.olleys.app

@@ -16,9 +16,19 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
   String? _secilenUrun;
   int? _secilenUrunRafOmru; // Seçilen ürünün raf ömrünü tutmak için
   final TextEditingController _adetController = TextEditingController();
+  final TextEditingController _aramaController = TextEditingController();
 
   bool _geriyeDonukMu = false;
   DateTime _secilenTarih = DateTime.now();
+  String _aramaMetni = '';
+  bool _sadeceSktYaklasanlar = false;
+
+  @override
+  void dispose() {
+    _adetController.dispose();
+    _aramaController.dispose();
+    super.dispose();
+  }
 
   Future<void> _tarihSaatSec() async {
     final DateTime? pickedDate = await showDatePicker(
@@ -75,6 +85,7 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
         'silinmeZamani': silinmeZamani,
         'durum': 'Rafta',
         'satilanAdet': 0,
+        'imhaEdilenAdet': 0,
       });
 
       // 4. Arayüzü Sıfırla
@@ -187,10 +198,11 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
 
   // --- 2. GÜNCELLENMİŞ TOPLU İMHA FONKSİYONU ---
   Future<void> _imhaEt(String id, String isim, int mevcutAdet) async {
-    // 1. Ürünü raftan kaldır
+    // 1. Ürünü raftan kaldır ve imha sayısını artır
     await FirebaseFirestore.instance.collection('pastalar').doc(id).update({
       'durum': 'İmha Edildi',
       'adet': 0,
+      'imhaEdilenAdet': FieldValue.increment(mevcutAdet),
     });
 
     // 2. Logu kaydet ve bize verdiği ID'yi değişkende tut!
@@ -212,7 +224,11 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
             await FirebaseFirestore.instance
                 .collection('pastalar')
                 .doc(id)
-                .update({'durum': 'Rafta', 'adet': mevcutAdet});
+                .update({
+                  'durum': 'Rafta',
+                  'adet': mevcutAdet,
+                  'imhaEdilenAdet': FieldValue.increment(-mevcutAdet),
+                });
 
             // B. YENİ KOD: Eğer log başarıyla oluşmuşsa (logId null değilse), o logu veritabanından sil!
             if (logId != null) {
@@ -233,10 +249,11 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
       int yeniAdet = mevcutAdet - 1;
       String yeniDurum = yeniAdet == 0 ? 'İmha Edildi' : 'Rafta';
 
-      // 1. Stoktan 1 adet düş
+      // 1. Stoktan 1 adet düş ve imha sayısını 1 artır
       await FirebaseFirestore.instance.collection('pastalar').doc(id).update({
         'adet': yeniAdet,
         'durum': yeniDurum,
+        'imhaEdilenAdet': FieldValue.increment(1),
       });
 
       // 2. Logu kaydet ve ID'sini tut!
@@ -260,7 +277,11 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
               await FirebaseFirestore.instance
                   .collection('pastalar')
                   .doc(id)
-                  .update({'durum': 'Rafta', 'adet': mevcutAdet});
+                  .update({
+                    'durum': 'Rafta',
+                    'adet': mevcutAdet,
+                    'imhaEdilenAdet': FieldValue.increment(-1),
+                  });
 
               // B. YENİ KOD: Tutulan ID'ye ait logu sil!
               if (logId != null) {
@@ -328,11 +349,8 @@ class _PastaTakipEkraniState extends State<PastaTakipEkrani> {
                   onChanged: (val) {
                     setState(() {
                       _secilenUrun = val;
-                      // Seçilen ürünün dökümanından raf ömrünü alıyoruz
-                      var secilenDoc = katalogItems.firstWhere(
-                        (d) => d['isim'] == val,
-                      );
-                      _secilenUrunRafOmru = secilenDoc['rafOmruGun'];
+                      final match = katalogItems.where((d) => d['isim'] == val);
+                      _secilenUrunRafOmru = match.isNotEmpty ? match.first['rafOmruGun'] : null;
                     });
                   },
                   decoration: const InputDecoration(

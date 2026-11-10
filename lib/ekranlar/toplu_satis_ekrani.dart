@@ -17,6 +17,15 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
   // Tarih seçimi — varsayılan bugün
   DateTime _secilenTarih = DateTime.now();
 
+  @override
+  void dispose() {
+    for (var controller in _adetControllers.values) {
+      controller.dispose();
+    }
+    _adetControllers.clear();
+    super.dispose();
+  }
+
   // ----------------------------------------------------------------
   // TARİH SEÇİCİ
   // ----------------------------------------------------------------
@@ -105,6 +114,19 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
     setState(() => _islemYapiliyor = true);
 
     try {
+      final simdi = DateTime.now();
+      final islemTarihi = _bugun
+          ? simdi
+          : DateTime(
+              _secilenTarih.year,
+              _secilenTarih.month,
+              _secilenTarih.day,
+              simdi.hour,
+              simdi.minute,
+              simdi.second,
+            );
+
+      final batch = FirebaseFirestore.instance.batch();
       int toplamGuncellenen = 0;
 
       for (var entry in satislar.entries) {
@@ -138,22 +160,37 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
               ? mevcutAdet
               : kalanDusulecek;
 
-          await FirebaseFirestore.instance
-              .collection('pastalar')
-              .doc(doc.id)
-              .update({
-                'adet': mevcutAdet - buDokmandanDus,
-                'satilanAdet': mevcutSatilan + buDokmandanDus,
-                'durum': (mevcutAdet - buDokmandanDus) == 0
-                    ? 'Tükendi'
-                    : 'Rafta',
-              });
+          batch.update(doc.reference, {
+            'adet': mevcutAdet - buDokmandanDus,
+            'satilanAdet': mevcutSatilan + buDokmandanDus,
+            'durum': (mevcutAdet - buDokmandanDus) == 0
+                ? 'Tükendi'
+                : 'Rafta',
+          });
 
           kalanDusulecek -= buDokmandanDus;
           toplamGuncellenen++;
         }
       }
-      await _satisLogKaydet(satislar);
+
+      // Satış logunu da aynı atomik batch içine ekliyoruz
+      final prefs = await SharedPreferences.getInstance();
+      String kullanici =
+          prefs.getString('aktifKullanici') ?? 'Bilinmeyen Kullanıcı';
+      int toplamAdet = satislar.values.fold(0, (a, b) => a + b);
+
+      final logDocRef = FirebaseFirestore.instance
+          .collection('satis_loglari')
+          .doc();
+      batch.set(logDocRef, {
+        'kullanici': kullanici,
+        'toplamAdet': toplamAdet,
+        'detaylar': satislar,
+        'tarih': islemTarihi,
+      });
+
+      // Hepsini tek seferde atomik olarak yaz!
+      await batch.commit();
 
       if (mounted) {
         _adetControllers.forEach((_, c) => c.clear());
@@ -174,27 +211,6 @@ class _TopluSatisEkraniState extends State<TopluSatisEkrani> {
       if (mounted) _mesajGoster('Hata oluştu: $e', Colors.red);
     } finally {
       if (mounted) setState(() => _islemYapiliyor = false);
-    }
-  }
-
-  Future<void> _satisLogKaydet(Map<String, int> satislar) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      String kullanici =
-          prefs.getString('aktifKullanici') ?? 'Bilinmeyen Kullanıcı';
-
-      // Sepetteki toplam ürün sayısını hesaplıyoruz
-      int toplamAdet = satislar.values.fold(0, (a, b) => a + b);
-
-      await FirebaseFirestore.instance.collection('satis_loglari').add({
-        'kullanici': kullanici,
-        'toplamAdet': toplamAdet, // O işlemdeki toplam ürün sayısı
-        'detaylar':
-            satislar, // Hangi üründen kaç tane olduğu veritabanına Map (Sözlük) olarak kaydedilir
-        'tarih': DateTime.now(),
-      });
-    } catch (e) {
-      debugPrint("Satış log hatası: $e");
     }
   }
 

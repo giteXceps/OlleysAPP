@@ -10,12 +10,18 @@ class DemlemeAnalizEkrani extends StatefulWidget {
 }
 
 class _DemlemeAnalizEkraniState extends State<DemlemeAnalizEkrani> {
-  // Son 7 günün tarih listesi (bugün dahil, en yeni üstte)
-  List<DateTime> get _sonYediGun {
-    return List.generate(7, (i) {
-      final d = DateTime.now().subtract(Duration(days: i));
+  late final List<DateTime> _sonYediGun;
+  late Future<Map<String, List<Map<String, dynamic>>>> _demlemelerFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _sonYediGun = List.generate(7, (i) {
+      final d = now.subtract(Duration(days: i));
       return DateTime(d.year, d.month, d.day);
     });
+    _demlemelerFuture = _tumDemlemeleriGetir();
   }
 
   String _tarihStr(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
@@ -28,41 +34,62 @@ class _DemlemeAnalizEkraniState extends State<DemlemeAnalizEkrani> {
     return DateFormat('EEE, d MMM').format(d);
   }
 
-  // YENİ METOD: Belirli bir tarihteki tüm demlemeleri getirir (çay + kahve)
-  Future<List<Map<String, dynamic>>> _gunlukDemlemeleriGetir(
-    String tarihStr,
-  ) async {
-    // Çay demlemeleri
-    var caySnap = await FirebaseFirestore.instance
+  // 14 ayrı sorgu yerine 7 günlük veriyi TEK SEFERDE çekip tarihe göre gruplar
+  Future<Map<String, List<Map<String, dynamic>>>> _tumDemlemeleriGetir() async {
+    final enEskiGun = _sonYediGun.last;
+    final baslangicStr = _tarihStr(enEskiGun);
+
+    // Çay demlemeleri (Son 7 gün)
+    final caySnap = await FirebaseFirestore.instance
         .collection('cay_demlemeleri')
-        .where('tarih', isEqualTo: tarihStr)
+        .where('tarih', isGreaterThanOrEqualTo: baslangicStr)
         .get();
 
-    // Kahve demlemeleri
-    var kahveSnap = await FirebaseFirestore.instance
+    // Kahve demlemeleri (Son 7 gün)
+    final kahveSnap = await FirebaseFirestore.instance
         .collection('kahve_demlemeleri')
-        .where('tarih', isEqualTo: tarihStr)
+        .where('tarih', isGreaterThanOrEqualTo: baslangicStr)
         .get();
 
-    List<Map<String, dynamic>> tumDemlemeler = [];
+    final Map<String, List<Map<String, dynamic>>> gunlukGruplar = {};
+    for (var gun in _sonYediGun) {
+      gunlukGruplar[_tarihStr(gun)] = [];
+    }
 
     for (var doc in caySnap.docs) {
-      tumDemlemeler.add({
-        'tip': 'çay',
-        'zaman': (doc['demlemeZamani'] as Timestamp).toDate(),
-      });
+      final data = doc.data();
+      final tarih = data['tarih'] as String? ?? '';
+      if (gunlukGruplar.containsKey(tarih)) {
+        gunlukGruplar[tarih]!.add({
+          'tip': 'çay',
+          'zaman': (data['demlemeZamani'] as Timestamp).toDate(),
+        });
+      }
     }
 
     for (var doc in kahveSnap.docs) {
-      tumDemlemeler.add({
-        'tip': 'kahve',
-        'zaman': (doc['demlemeZamani'] as Timestamp).toDate(),
-      });
+      final data = doc.data();
+      final tarih = data['tarih'] as String? ?? '';
+      if (gunlukGruplar.containsKey(tarih)) {
+        gunlukGruplar[tarih]!.add({
+          'tip': 'kahve',
+          'zaman': (data['demlemeZamani'] as Timestamp).toDate(),
+        });
+      }
     }
 
-    // Saate göre sırala (yeniden eskiye)
-    tumDemlemeler.sort((a, b) => b['zaman'].compareTo(a['zaman']));
-    return tumDemlemeler;
+    // Her günün demlemelerini saate göre sırala (yeniden eskiye)
+    gunlukGruplar.forEach((_, list) {
+      list.sort((a, b) => (b['zaman'] as DateTime).compareTo(a['zaman'] as DateTime));
+    });
+
+    return gunlukGruplar;
+  }
+
+  Future<void> _yenile() async {
+    setState(() {
+      _demlemelerFuture = _tumDemlemeleriGetir();
+    });
   }
 
   @override
@@ -70,23 +97,45 @@ class _DemlemeAnalizEkraniState extends State<DemlemeAnalizEkrani> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('Demleme Analizi — 7 Gün'),
+        title: const Text('Demleme Analizi — Son 7 Gün'),
         backgroundColor: Colors.blueGrey[800],
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Yenile',
+            onPressed: _yenile,
+          ),
+        ],
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _sonYediGun.length,
-        itemBuilder: (context, index) {
-          DateTime gun = _sonYediGun[index];
-          String tarihStr = _tarihStr(gun);
-          bool bugun = index == 0;
+      body: FutureBuilder<Map<String, List<Map<String, dynamic>>>>(
+        future: _demlemelerFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Veriler yüklenirken hata oluştu: ${snapshot.error}'),
+            );
+          }
 
-          return FutureBuilder<List<Map<String, dynamic>>>(
-            future: _gunlukDemlemeleriGetir(tarihStr),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                // Yükleniyor
+          final tumGruplar = snapshot.data ?? {};
+
+          return RefreshIndicator(
+            onRefresh: _yenile,
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _sonYediGun.length,
+              itemBuilder: (context, index) {
+                final gun = _sonYediGun[index];
+                final tarihStr = _tarihStr(gun);
+                final bool bugun = index == 0;
+                final demlemeler = tumGruplar[tarihStr] ?? [];
+
+                final int cayAdet = demlemeler.where((d) => d['tip'] == 'çay').length;
+                final int kahveAdet = demlemeler.where((d) => d['tip'] == 'kahve').length;
+
                 return Card(
                   elevation: bugun ? 4 : 1,
                   margin: const EdgeInsets.only(bottom: 12),
@@ -96,195 +145,160 @@ class _DemlemeAnalizEkraniState extends State<DemlemeAnalizEkrani> {
                         ? const BorderSide(color: Colors.blueGrey, width: 2)
                         : BorderSide.none,
                   ),
-                  child: const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(
-                      child: SizedBox(
-                        height: 24,
-                        child: LinearProgressIndicator(),
-                      ),
-                    ),
-                  ),
-                );
-              }
-
-              final demlemeler = snapshot.data!;
-              int cayAdet = demlemeler.where((d) => d['tip'] == 'çay').length;
-              int kahveAdet = demlemeler
-                  .where((d) => d['tip'] == 'kahve')
-                  .length;
-
-              return Card(
-                elevation: bugun ? 4 : 1,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: bugun
-                      ? const BorderSide(color: Colors.blueGrey, width: 2)
-                      : BorderSide.none,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Gün başlığı
-                      Row(
-                        children: [
-                          Icon(
-                            bugun ? Icons.today : Icons.calendar_today_outlined,
-                            size: 18,
-                            color: bugun
-                                ? Colors.blueGrey[800]
-                                : Colors.grey[500],
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _gunEtiketi(gun),
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: bugun
-                                  ? Colors.blueGrey[800]
-                                  : Colors.grey[700],
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            DateFormat('dd/MM/yyyy').format(gun),
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Çay ve Kahve sayaçları
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _sayacKutusu(
-                              ikon: Icons.local_drink,
-                              renk: Colors.deepOrange,
-                              baslik: 'Çay',
-                              adet: cayAdet,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _sayacKutusu(
-                              ikon: Icons.coffee_maker,
-                              renk: Colors.brown,
-                              baslik: 'Filtre Kahve',
-                              adet: kahveAdet,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      // Toplam ve saatler (eğer demleme varsa)
-                      if (demlemeler.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Divider(height: 1, color: Colors.grey[200]),
-                        const SizedBox(height: 10),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Gün başlığı
                         Row(
                           children: [
                             Icon(
-                              Icons.schedule,
-                              size: 14,
-                              color: Colors.grey[500],
+                              bugun ? Icons.today : Icons.calendar_today_outlined,
+                              size: 18,
+                              color: bugun ? Colors.blueGrey[800] : Colors.grey[500],
                             ),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 8),
                             Text(
-                              'Demleme Saatleri:',
+                              _gunEtiketi(gun),
                               style: TextStyle(
-                                color: Colors.grey[600],
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: bugun ? Colors.blueGrey[800] : Colors.grey[700],
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              DateFormat('dd/MM/yyyy').format(gun),
+                              style: TextStyle(
+                                color: Colors.grey[400],
                                 fontSize: 12,
-                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        // Saat etiketleri
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: demlemeler.map((dem) {
-                            final tip = dem['tip'] as String;
-                            final zaman = dem['zaman'] as DateTime;
-                            final saatStr = DateFormat('HH:mm').format(zaman);
-                            final isCay = tip == 'çay';
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
+                        const SizedBox(height: 14),
+
+                        // Çay ve Kahve sayaçları
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _sayacKutusu(
+                                ikon: Icons.local_drink,
+                                renk: Colors.deepOrange,
+                                baslik: 'Çay',
+                                adet: cayAdet,
                               ),
-                              decoration: BoxDecoration(
-                                color: isCay
-                                    ? Colors.deepOrange.withOpacity(0.1)
-                                    : Colors.brown.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: isCay
-                                      ? Colors.deepOrange.withOpacity(0.3)
-                                      : Colors.brown.withOpacity(0.3),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _sayacKutusu(
+                                ikon: Icons.coffee_maker,
+                                renk: Colors.brown,
+                                baslik: 'Filtre Kahve',
+                                adet: kahveAdet,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // Toplam ve saatler (eğer demleme varsa)
+                        if (demlemeler.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Divider(height: 1, color: Colors.grey[200]),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.schedule,
+                                size: 14,
+                                color: Colors.grey[500],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Demleme Saatleri (${demlemeler.length} Toplam):',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isCay
-                                        ? Icons.local_drink
-                                        : Icons.coffee_maker,
-                                    size: 12,
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          // Saat etiketleri
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: demlemeler.map((dem) {
+                              final tip = dem['tip'] as String;
+                              final zaman = dem['zaman'] as DateTime;
+                              final saatStr = DateFormat('HH:mm').format(zaman);
+                              final isCay = tip == 'çay';
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isCay
+                                      ? Colors.deepOrange.withOpacity(0.1)
+                                      : Colors.brown.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
                                     color: isCay
-                                        ? Colors.deepOrange
-                                        : Colors.brown,
+                                        ? Colors.deepOrange.withOpacity(0.3)
+                                        : Colors.brown.withOpacity(0.3),
                                   ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    saatStr,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: isCay
-                                          ? Colors.deepOrange[800]
-                                          : Colors.brown[800],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      isCay ? Icons.local_drink : Icons.coffee_maker,
+                                      size: 12,
+                                      color: isCay ? Colors.deepOrange : Colors.brown,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      saatStr,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: isCay
+                                            ? Colors.deepOrange[800]
+                                            : Colors.brown[800],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 6),
+                          Center(
+                            child: Text(
+                              'Bu gün için kayıt bulunamadı',
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 13,
                               ),
-                            );
-                          }).toList(),
-                        ),
-                      ] else ...[
-                        const SizedBox(height: 6),
-                        Center(
-                          child: Text(
-                            'Bu gün için kayıt bulunamadı',
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 13,
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           );
         },
       ),
     );
   }
 
-  // Sayaç kutusu widget'ı (aynı)
   Widget _sayacKutusu({
     required IconData ikon,
     required Color renk,

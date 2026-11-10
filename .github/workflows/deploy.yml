@@ -1,0 +1,54 @@
+name: Deploy Web to Firebase & Build APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodu Getir (Checkout)
+        uses: actions/checkout@v4
+
+      - name: Java Kurulumu (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Flutter Kurulumu
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Paketleri İndir
+        run: flutter pub get
+
+      # --- WEB BUILD & DEPLOY ---
+      - name: Web Sürümünü Derle
+        run: flutter build web --release
+
+      - name: Firebase Hosting'e Yükle (Deploy)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLEYSAPP }}'
+          channelId: live
+          projectId: olleysapp
+        continue-on-error: true
+
+      # --- ANDROID APK BUILD ---
+      - name: Android APK Derle
+        run: flutter build apk --release
+
+      - name: APK'yı İndirilebilir Dosya Olarak Yükle (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: OlleysAPP-Release-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+

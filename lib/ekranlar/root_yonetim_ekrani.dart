@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'giris_ekrani.dart';
 
 class RootYonetimEkrani extends StatefulWidget {
@@ -14,6 +15,13 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
   final TextEditingController _sifreController = TextEditingController();
   String _secilenRol = 'personel';
   String _secilenBirim = 'Coffee Go';
+
+  @override
+  void dispose() {
+    _adController.dispose();
+    _sifreController.dispose();
+    super.dispose();
+  }
 
   // --- KULLANICI EKLEME FONKSİYONU ---
   void _kullaniciEkle() async {
@@ -80,6 +88,8 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
         'cay_demlemeleri',
         'kahve_demlemeleri',
         'dolap_sicakliklari',
+        'satis_loglari',
+        'imha_loglari',
       ];
       int toplamSilinen = 0;
 
@@ -89,6 +99,8 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
           tarihAlani = 'eklenmeZamani';
         } else if (koleksiyonAdi == 'dolap_sicakliklari') {
           tarihAlani = 'kayitZamani';
+        } else if (koleksiyonAdi == 'satis_loglari' || koleksiyonAdi == 'imha_loglari') {
+          tarihAlani = 'tarih';
         } else {
           tarihAlani = 'demlemeZamani';
         }
@@ -98,11 +110,15 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
             .where(tarihAlani, isLessThan: ucAyOnce)
             .get();
 
-        final batch = FirebaseFirestore.instance.batch();
-        for (var doc in eskiKayitlar.docs) {
-          batch.delete(doc.reference);
+        // Firestore batch sınırı 500 olduğu için 400'lük parçalarla siliyoruz
+        for (var i = 0; i < eskiKayitlar.docs.length; i += 400) {
+          final chunk = eskiKayitlar.docs.skip(i).take(400);
+          final batch = FirebaseFirestore.instance.batch();
+          for (var doc in chunk) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
         }
-        await batch.commit();
 
         toplamSilinen += eskiKayitlar.docs.length;
       }
@@ -159,7 +175,11 @@ class _RootYonetimEkraniState extends State<RootYonetimEkrani> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () {
+            tooltip: 'Çıkış Yap',
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.clear();
+              if (!context.mounted) return;
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => const GirisEkrani()),

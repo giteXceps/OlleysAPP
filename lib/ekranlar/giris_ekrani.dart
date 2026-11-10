@@ -14,10 +14,18 @@ class GirisEkrani extends StatefulWidget {
 
 class _GirisEkraniState extends State<GirisEkrani> {
   final TextEditingController _kullaniciAdiController = TextEditingController();
-  final TextEditingController _sifreController =
-      TextEditingController(); // Şifre için eklendi
+  final TextEditingController _sifreController = TextEditingController();
+  bool _sifreGizli = true;
+  bool _yukleniyor = false;
 
-  void _girisYap() async {
+  @override
+  void dispose() {
+    _kullaniciAdiController.dispose();
+    _sifreController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _girisYap() async {
     String girilenAd = _kullaniciAdiController.text.trim().toLowerCase();
     String girilenSifre = _sifreController.text.trim();
 
@@ -25,6 +33,8 @@ class _GirisEkraniState extends State<GirisEkrani> {
       _mesajGoster("Lütfen kullanıcı adı ve şifre girin.");
       return;
     }
+
+    setState(() => _yukleniyor = true);
 
     try {
       // Firestore'da kullanıcıyı bul
@@ -34,13 +44,17 @@ class _GirisEkraniState extends State<GirisEkrani> {
           .where('sifre', isEqualTo: girilenSifre)
           .get();
 
+      if (!mounted) return;
+
       if (userDoc.docs.isNotEmpty) {
         var veri = userDoc.docs.first.data();
-        String rol = veri['rol'];
+        String rol = veri['rol'] ?? '';
         String birim = veri['birim'] ?? '';
 
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('aktifKullanici', girilenAd);
+        await prefs.setString('aktifRol', rol);
+        await prefs.setString('aktifBirim', birim);
 
         if (!mounted) return;
 
@@ -73,17 +87,29 @@ class _GirisEkraniState extends State<GirisEkrani> {
                 builder: (context) => const CoffeeGoAnaEkrani(),
               ),
             );
+          } else {
+            _mesajGoster("Bu birim için tanımlı işlem paneli bulunamadı: $birim");
           }
+        } else {
+          _mesajGoster("Tanımsız kullanıcı rolü: $rol");
         }
       } else {
         _mesajGoster("Hatalı kullanıcı adı veya şifre!");
       }
     } catch (e) {
-      _mesajGoster("Bağlantı hatası: $e");
+      if (mounted) {
+        _mesajGoster("Bağlantı hatası: $e");
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _yukleniyor = false);
+      }
     }
   }
 
   void _mesajGoster(String mesaj) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(mesaj), backgroundColor: Colors.red));
@@ -94,61 +120,87 @@ class _GirisEkraniState extends State<GirisEkrani> {
     return Scaffold(
       backgroundColor: Colors.grey[200],
       body: Center(
-        child: Container(
-          width: 400,
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Coffee Go | Yönetim',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.brown,
-                ),
-              ),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _kullaniciAdiController,
-                decoration: const InputDecoration(
-                  labelText: 'Kullanıcı Adı',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _sifreController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Şifre',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock),
-                ),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _girisYap,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueGrey,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text(
-                    'Giriş Yap',
-                    style: TextStyle(fontSize: 18),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Container(
+            width: 400,
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.coffee, size: 54, color: Colors.brown),
+                const SizedBox(height: 12),
+                const Text(
+                  'Coffee Go | Yönetim',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.brown,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 32),
+                TextField(
+                  controller: _kullaniciAdiController,
+                  enabled: !_yukleniyor,
+                  decoration: const InputDecoration(
+                    labelText: 'Kullanıcı Adı',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  onSubmitted: (_) => _girisYap(),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _sifreController,
+                  obscureText: _sifreGizli,
+                  enabled: !_yukleniyor,
+                  decoration: InputDecoration(
+                    labelText: 'Şifre',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _sifreGizli ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setState(() => _sifreGizli = !_sifreGizli);
+                      },
+                    ),
+                  ),
+                  onSubmitted: (_) => _girisYap(),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: _yukleniyor ? null : _girisYap,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueGrey,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: _yukleniyor
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Giriş Yap',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

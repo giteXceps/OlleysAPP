@@ -160,6 +160,12 @@ class _DolapSicaklikEkraniState extends State<DolapSicaklikEkrani> {
       if (spotsDolap2.last.x > maxX) maxX = spotsDolap2.last.x;
     }
 
+    // Tek bir ölçüm varsa minX == maxX olur, fl_chart çökmemesi için aralık ver
+    if (minX >= maxX) {
+      maxX = minX + 60;
+    }
+    if (maxY <= 0) maxY = 15;
+
     return Container(
       height: 200,
       padding: const EdgeInsets.all(8),
